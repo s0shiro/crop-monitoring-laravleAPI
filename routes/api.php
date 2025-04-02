@@ -3,6 +3,8 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\UserController;
+
 
 // Public routes - no authentication required
 Route::post('/register', [AuthController::class, 'register']);
@@ -13,14 +15,18 @@ Route::get('/login', function () {
 
 // Protected routes - JWT authentication required
 Route::middleware('auth:api')->group(function () {
-    // User data
-    Route::get('/user', function (Request $request) {
-        return $request->user();
-    });
+
+    Route::get('/user', [UserController::class, 'profile']);
     
     // Auth management
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/refresh', [AuthController::class, 'refresh']);
+
+    Route::get('/roles', function (Request $request) {
+        return response()->json([
+            'message' => 'Roles you have access to',
+        ]);
+    })->middleware(['role:admin']);
 
     // Add other protected routes here
     // Route::get('/dashboard', [DashboardController::class, 'index']);

@@ -68,7 +68,7 @@ class AuthController extends Controller
         $cookie = cookie(
             'auth_token',     // name
             $token,           // value 
-            60,               // minutes (1 hour)
+            60,            // minutes (1 hour)
             '/',              // path
             null,             // domain
             false,            // secure (set to true in production)
