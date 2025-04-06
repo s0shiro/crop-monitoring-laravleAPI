@@ -128,4 +128,37 @@ class UserController extends Controller
             'permissions' => $user->getAllPermissions()->pluck('name')
         ]);
     }
+
+    /**
+     * Update a specific user's permissions (Admin only)
+     */
+    public function updateUserPermissions(Request $request, User $user)
+    {
+        \Log::info('Updating permissions for user:', $request->all());
+
+        $validator = \Validator::make($request->all(), [
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'exists:permissions,name',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'One or more permissions do not exist.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Sync the provided direct permissions with the user.
+        // This will add any new permissions and remove any not present in the array.
+        $user->syncPermissions($request->permissions ?? []);
+
+        \Log::info('Direct permissions updated for user:',
+            $user->getDirectPermissions()->pluck('name')->toArray()
+        );
+
+        return response()->json([
+            'message' => 'User permissions updated successfully.',
+            'direct_permissions' => $user->getDirectPermissions()->pluck('name')
+        ]);
+    }
 }

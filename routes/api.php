@@ -35,6 +35,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/users/{user}/profile', [UserController::class, 'show']);
         Route::put('/users/{user}', [UserController::class, 'update']);
         Route::delete('/users/{user}', [UserController::class, 'destroy']);
+
+
+        Route::patch('/users/{user}/permissions', [UserController::class, 'updateUserPermissions']);
     });
 
     // Add other protected routes here
