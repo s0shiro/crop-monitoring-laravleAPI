@@ -4,6 +4,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\CropController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\VarietyController;
 
 
 // Public routes - no authentication required
@@ -28,6 +32,9 @@ Route::middleware('auth:api')->group(function () {
         ]);
     })->middleware(['role:admin']);
 
+    // Endpoint to fetch available permissions
+    Route::get('/permissions', [PermissionController::class, 'index']);
+
     // User management routes (only for Admin)
     Route::middleware('permission:manage_users')->group(function () {
         Route::get('/users', [UserController::class, 'index']);
@@ -40,7 +47,16 @@ Route::middleware('auth:api')->group(function () {
         Route::patch('/users/{user}/permissions', [UserController::class, 'updateUserPermissions']);
     });
 
-    // Add other protected routes here
-    // Route::get('/dashboard', [DashboardController::class, 'index']);
-    // Route::resource('/posts', PostController::class);
+    // Crop management endpoints
+    Route::get('/crops', [CropController::class, 'index']);
+    Route::post('/crops', [CropController::class, 'store']);
+    Route::get('/crops/by-category', [CropController::class, 'getByCategory']);
+    // Updated endpoint to add a variety to a crop
+    Route::post('/crops/{cropId}/varieties', [VarietyController::class, 'store']);
+    // Endpoint to get all varieties for a specific crop
+    Route::get('/crops/{cropId}/varieties', [VarietyController::class, 'index']);
+
+    // Endpoint to fetch categories dynamically
+    Route::get('/categories', [CategoryController::class, 'index']);
+
 });
