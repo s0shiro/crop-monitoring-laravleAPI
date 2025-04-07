@@ -8,7 +8,7 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
-
+use App\Models\Category;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -89,5 +89,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'password' => Hash::make('password'),
             ]
         )->assignRole('coordinator');
+
+        // Add categories for crops
+        $categories = ['Rice', 'Corn', 'High Value'];
+        foreach ($categories as $categoryName) {
+            Category::firstOrCreate(['name' => $categoryName]);
+        }
     }
 }
