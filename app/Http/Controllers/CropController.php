@@ -50,6 +50,7 @@ class CropController extends Controller
         $limit = 9; // Number of crops per page
 
         $crops = Crop::where('category_id', $request->category_id)
+            ->withCount('varieties') // Include the count of varieties
             ->skip($cursor)
             ->take($limit + 1) // Fetch one extra to check for next page
             ->get();
