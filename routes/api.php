@@ -8,6 +8,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\CropController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\VarietyController;
+use App\Http\Controllers\AssociationController;
 
 
 // Public routes - no authentication required
@@ -58,5 +59,12 @@ Route::middleware('auth:api')->group(function () {
 
     // Endpoint to fetch categories dynamically
     Route::get('/categories', [CategoryController::class, 'index']);
+
+    // Association management endpoints
+    Route::get('/associations', [AssociationController::class, 'index']);
+    Route::post('/associations', [AssociationController::class, 'store']);
+    Route::get('/associations/{association}', [AssociationController::class, 'show']);
+    Route::put('/associations/{association}', [AssociationController::class, 'update']);
+    Route::delete('/associations/{association}', [AssociationController::class, 'destroy']);
 
 });
