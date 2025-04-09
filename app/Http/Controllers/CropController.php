@@ -51,6 +51,7 @@ class CropController extends Controller
 
         $crops = Crop::where('category_id', $request->category_id)
             ->withCount('varieties') // Include the count of varieties
+            ->orderBy('id', 'desc') // Order by descending
             ->skip($cursor)
             ->take($limit + 1) // Fetch one extra to check for next page
             ->get();
