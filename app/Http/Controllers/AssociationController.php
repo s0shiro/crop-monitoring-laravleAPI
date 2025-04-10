@@ -12,7 +12,7 @@ class AssociationController extends Controller
      */
     public function index()
     {
-        $associations = Association::all();
+        $associations = Association::withCount('farmers')->get();
         return response()->json($associations);
     }
 
