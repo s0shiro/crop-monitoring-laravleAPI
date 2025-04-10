@@ -161,4 +161,16 @@ class UserController extends Controller
             'direct_permissions' => $user->getDirectPermissions()->pluck('name')
         ]);
     }
+
+    /**
+     * Get all technicians
+     */
+    public function getTechnicians()
+    {
+        $technicians = User::whereHas('roles', function ($query) {
+            $query->where('name', 'technician');
+        })->get();
+
+        return response()->json($technicians);
+    }
 }
