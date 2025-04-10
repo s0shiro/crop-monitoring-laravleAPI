@@ -9,6 +9,7 @@ use App\Http\Controllers\CropController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\VarietyController;
 use App\Http\Controllers\AssociationController;
+use App\Http\Controllers\FarmerController;
 
 
 // Public routes - no authentication required
@@ -44,6 +45,8 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/users/{user}', [UserController::class, 'update']);
         Route::delete('/users/{user}', [UserController::class, 'destroy']);
 
+        Route::get('users/technicians', [UserController::class, 'getTechnicians']);
+
 
         Route::patch('/users/{user}/permissions', [UserController::class, 'updateUserPermissions']);
     });
@@ -66,5 +69,12 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/associations/{association}', [AssociationController::class, 'show']);
     Route::put('/associations/{association}', [AssociationController::class, 'update']);
     Route::delete('/associations/{association}', [AssociationController::class, 'destroy']);
+
+    // Farmer management endpoints
+    Route::get('/farmers', [FarmerController::class, 'index'])->middleware('permission:view_farmers');
+    Route::post('/farmers', [FarmerController::class, 'store'])->middleware('permission:create_farmers');
+    Route::get('/farmers/{farmer}', [FarmerController::class, 'show'])->middleware('permission:view_farmers');
+    Route::put('/farmers/{farmer}', [FarmerController::class, 'update'])->middleware('permission:update_farmers');
+    Route::delete('/farmers/{farmer}', [FarmerController::class, 'destroy'])->middleware('permission:delete_farmers');
 
 });
