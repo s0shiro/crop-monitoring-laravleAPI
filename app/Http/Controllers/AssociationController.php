@@ -10,10 +10,27 @@ class AssociationController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $associations = Association::withCount('farmers')->get();
-        return response()->json($associations);
+        $request->validate([
+            'cursor' => 'nullable|integer|min:0',
+        ]);
+
+        $cursor = $request->input('cursor', 0);
+        $limit = 10; // Number of associations per page
+
+        $associations = Association::withCount('farmers')
+            ->orderBy('id', 'desc')
+            ->skip($cursor)
+            ->take($limit + 1)
+            ->get();
+
+        $nextCursor = $associations->count() > $limit ? $cursor + $limit : null;
+
+        return response()->json([
+            'data' => $associations->take($limit),
+            'nextCursor' => $nextCursor,
+        ]);
     }
 
     /**
@@ -34,16 +51,34 @@ class AssociationController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Association $association)
+    public function show(Request $request, Association $association)
     {
-        $farmers = $association->farmers()->paginate(10);
+        $request->validate([
+            'cursor' => 'nullable|integer|min:0',
+        ]);
+
+        $cursor = $request->input('cursor', 0);
+        $limit = 10;
+
+        $farmers = $association->farmers()
+            ->orderBy('id', 'desc')
+            ->skip($cursor)
+            ->take($limit + 1)
+            ->get();
+
+        $nextCursor = $farmers->count() > $limit ? $cursor + $limit : null;
 
         $genderStats = [
-            'male' => $association->farmers()->where('gender', 'Male')->count(),
-            'female' => $association->farmers()->where('gender', 'Female')->count(),
+            'male' => $association->farmers()->where('gender', 'male')->count(),
+            'female' => $association->farmers()->where('gender', 'female')->count(),
         ];
 
-        return response()->json(['association' => $association, 'farmers' => $farmers, 'genderStats' => $genderStats]);
+        return response()->json([
+            'association' => $association,
+            'farmers' => $farmers->take($limit),
+            'genderStats' => $genderStats,
+            'nextCursor' => $nextCursor,
+        ]);
     }
 
     /**
