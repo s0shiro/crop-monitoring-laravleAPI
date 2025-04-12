@@ -10,6 +10,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\VarietyController;
 use App\Http\Controllers\AssociationController;
 use App\Http\Controllers\FarmerController;
+use App\Http\Controllers\CropPlantingController;
 
 
 // Public routes - no authentication required
@@ -77,4 +78,10 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/farmers/{farmer}', [FarmerController::class, 'update'])->middleware('permission:update_farmers');
     Route::delete('/farmers/{farmer}', [FarmerController::class, 'destroy'])->middleware('permission:delete_farmers');
 
+    // Crop Planting Routes
+    Route::get('/crop-plantings', [CropPlantingController::class, 'index']);
+    Route::post('/crop-plantings', [CropPlantingController::class, 'store']);
+    Route::get('/crop-plantings/{cropPlanting}', [CropPlantingController::class, 'show']);
+    Route::put('/crop-plantings/{cropPlanting}', [CropPlantingController::class, 'update']);
+    Route::delete('/crop-plantings/{cropPlanting}', [CropPlantingController::class, 'destroy']);
 });
