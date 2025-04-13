@@ -16,6 +16,7 @@ use App\Http\Controllers\CropPlantingController;
 // Public routes - no authentication required
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/refresh', [AuthController::class, 'refresh']);
 Route::get('/login', function () {
     return response()->json(['message' => 'Authentication required'], 401);
 })->name('login');
@@ -27,7 +28,7 @@ Route::middleware('auth:api')->group(function () {
 
     // Auth management
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::post('/refresh', [AuthController::class, 'refresh']);
+
 
     Route::get('/roles', function (Request $request) {
         return response()->json([

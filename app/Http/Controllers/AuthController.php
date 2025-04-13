@@ -9,43 +9,64 @@ use App\Models\User;
 
 class AuthController extends Controller
 {
-    public function register(Request $request) {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
+    public function register(Request $request) 
+    {
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:255|unique:users',
+        'password' => 'required|string|min:8|confirmed',
+    ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
+    $user = User::create([
+        'name' => $request->name,
+        'email' => $request->email,
+        'password' => Hash::make($request->password),
+    ]);
 
-        $token = Auth::login($user);
+    // Generate both access and refresh tokens
+    $accessToken = Auth::claims(['type' => 'access'])
+        ->setTTL(15)        // 15 minutes
+        ->login($user);
+    
+    $refreshToken = Auth::claims(['type' => 'refresh'])
+        ->setTTL(10080)     // 7 days
+        ->login($user);
 
-        // Set HTTP-only cookie with the token
-        $cookie = cookie(
-            'auth_token',     // name
-            $token,           // value 
-            60,               // minutes (1 hour)
-            '/',              // path
-            null,             // domain
-            false,            // secure (set to true in production)
-            true,             // httpOnly
-            false,            // raw
-            'lax'             // sameSite (important for cross-domain usage)
-        );
+    // Set HTTP-only cookies
+    $accessCookie = cookie(
+        'access_token',
+        $accessToken,
+        15,              // 15 minutes
+        '/',
+        null,
+        false,          // secure (set to true in production)
+        true,           // httpOnly
+        false,
+        'lax'
+    );
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'User registered successfully',
-            'user' => $user,
-            'authorization' => [
-                'token' => $token,
-                'type' => 'bearer',
-            ],
-        ])->withCookie($cookie);
+    $refreshCookie = cookie(
+        'refresh_token',
+        $refreshToken,
+        10080,          // 7 days
+        '/',
+        null,
+        false,          // secure (set to true in production)
+        true,           // httpOnly
+        false,
+        'lax'
+    );
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'User registered successfully',
+        'user' => $user,
+        'authorization' => [
+            'access_token' => $accessToken,
+            'refresh_token' => $refreshToken,
+            'type' => 'bearer',
+        ],
+    ])->withCookie($accessCookie)->withCookie($refreshCookie);
     }
 
     public function login(Request $request)
@@ -64,64 +85,112 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // Set HTTP-only cookie with the token
-        $cookie = cookie(
-            'auth_token',     // name
-            $token,           // value 
-            60,            // minutes (1 hour)
-            '/',              // path
-            null,             // domain
-            false,            // secure (set to true in production)
-            true,             // httpOnly
-            false,            // raw
-            'lax'             // sameSite (important for cross-domain usage)
+        // Generate both access and refresh tokens
+        $accessToken = Auth::claims(['type' => 'access'])->setTTL(15)->attempt($credentials); // 15 minutes
+        $refreshToken = Auth::claims(['type' => 'refresh'])->setTTL(10080)->attempt($credentials); // 7 days
+
+        // Set HTTP-only cookies
+        $accessCookie = cookie(
+            'access_token',
+            $accessToken,
+            15,              // 15 minutes
+            '/',
+            null,
+            false,          // secure (set to true in production)
+            true,           // httpOnly
+            false,
+            'lax'
+        );
+
+        $refreshCookie = cookie(
+            'refresh_token',
+            $refreshToken,
+            10080,          // 7 days
+            '/',
+            null,
+            false,          // secure (set to true in production)
+            true,           // httpOnly
+            false,
+            'lax'
         );
 
         return response()->json([
             'status' => 'success',
             'user' => Auth::user(),
             'authorization' => [
-                'token' => $token,
+                'access_token' => $accessToken,
+                'refresh_token' => $refreshToken,
                 'type' => 'bearer',
             ],
-        ])->withCookie($cookie);
+        ])->withCookie($accessCookie)->withCookie($refreshCookie);
     }
 
     public function logout()
     {
         Auth::logout();
         
-        // Clear the cookie
-        $cookie = cookie()->forget('auth_token');
+        // Clear both cookies
+        $accessCookie = cookie()->forget('access_token');
+        $refreshCookie = cookie()->forget('refresh_token');
         
         return response()->json([
             'status' => 'success',
             'message' => 'Successfully logged out',
-        ])->withCookie($cookie);
+        ])->withCookie($accessCookie)->withCookie($refreshCookie);
     }
 
-    public function refresh() {
-        $newToken = Auth::refresh();
-        
-        // Set HTTP-only cookie with the refreshed token
-        $cookie = cookie(
-            'auth_token',     // name
-            $newToken,        // value 
-            60,               // minutes (1 hour)
-            '/',              // path
-            null,             // domain
-            false,            // secure
-            true,             // httpOnly
-        );
-        
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Token refreshed successfully',
-            'user' => Auth::user(),
-            'authorization' => [
-                'token' => $newToken,
-                'type' => 'bearer',
-            ],
-        ])->withCookie($cookie);
+    public function refresh(Request $request)
+    {
+        try {
+            $refreshToken = $request->cookie('refresh_token');
+            
+            if (!$refreshToken) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Refresh token not found',
+                ], 401);
+            }
+
+            // Verify the refresh token
+            Auth::setToken($refreshToken);
+            $claims = Auth::getPayload();
+            
+            if ($claims->get('type') !== 'refresh') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Invalid refresh token',
+                ], 401);
+            }
+
+            // Generate new access token
+            $newAccessToken = Auth::claims(['type' => 'access'])->setTTL(15)->tokenById(Auth::id());
+            
+            $accessCookie = cookie(
+                'access_token',
+                $newAccessToken,
+                15,
+                '/',
+                null,
+                false,
+                true,
+                false,
+                'lax'
+            );
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Token refreshed successfully',
+                'authorization' => [
+                    'access_token' => $newAccessToken,
+                    'type' => 'bearer',
+                ],
+            ])->withCookie($accessCookie);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid refresh token',
+            ], 401);
+        }
     }
 }
