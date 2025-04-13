@@ -30,12 +30,12 @@ class AuthController extends Controller
             }
         }
 
-        return [
+         return [
             'path' => '/',
-            'domain' => $domain,
-            'secure' => $isProduction, // true in production
+            'domain' => null, // Let the browser handle the domain
+            'secure' => $isProduction,
             'httponly' => true,
-            'samesite' => 'none', // Important for cross-site requests
+            'samesite' => $isProduction ? 'None' : 'Lax', // Must be 'None' for cross-site requests in production
         ];
     }
 
