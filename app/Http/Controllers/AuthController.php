@@ -9,6 +9,36 @@ use App\Models\User;
 
 class AuthController extends Controller
 {
+
+     protected function getCookieSettings()
+    {
+        $isProduction = app()->environment('production');
+        $domain = parse_url(config('app.url'), PHP_URL_HOST);
+        
+        // Remove 'www.' if present
+        $domain = preg_replace('/^www\./i', '', $domain);
+        
+        // For production, use the main domain
+        if ($isProduction) {
+            // Extract the main domain (e.g., onrender.com from crop-monitoring-laravleapi.onrender.com)
+            $parts = explode('.', $domain);
+            if (count($parts) > 2) {
+                array_shift($parts); // Remove subdomain
+                $domain = '.' . implode('.', $parts); // Prepend with dot for cross-subdomain support
+            } else {
+                $domain = '.' . $domain;
+            }
+        }
+
+        return [
+            'path' => '/',
+            'domain' => $domain,
+            'secure' => $isProduction, // true in production
+            'httponly' => true,
+            'samesite' => 'none', // Important for cross-site requests
+        ];
+    }
+
     public function register(Request $request) 
     {
     $request->validate([
@@ -86,32 +116,34 @@ class AuthController extends Controller
         }
 
         // Generate both access and refresh tokens
-        $accessToken = Auth::claims(['type' => 'access'])->setTTL(15)->attempt($credentials); // 15 minutes
-        $refreshToken = Auth::claims(['type' => 'refresh'])->setTTL(10080)->attempt($credentials); // 7 days
+        $accessToken = Auth::claims(['type' => 'access'])->setTTL(15)->attempt($credentials);
+        $refreshToken = Auth::claims(['type' => 'refresh'])->setTTL(10080)->attempt($credentials);
 
-        // Set HTTP-only cookies
+        $cookieSettings = $this->getCookieSettings();
+
+        // Set HTTP-only cookies with proper domain settings
         $accessCookie = cookie(
             'access_token',
             $accessToken,
-            15,              // 15 minutes
-            '/',
-            null,
-            false,          // secure (set to true in production)
-            true,           // httpOnly
+            15,
+            $cookieSettings['path'],
+            $cookieSettings['domain'],
+            $cookieSettings['secure'],
+            $cookieSettings['httponly'],
             false,
-            'lax'
+            $cookieSettings['samesite']
         );
 
         $refreshCookie = cookie(
             'refresh_token',
             $refreshToken,
-            10080,          // 7 days
-            '/',
-            null,
-            false,          // secure (set to true in production)
-            true,           // httpOnly
+            10080,
+            $cookieSettings['path'],
+            $cookieSettings['domain'],
+            $cookieSettings['secure'],
+            $cookieSettings['httponly'],
             false,
-            'lax'
+            $cookieSettings['samesite']
         );
 
         return response()->json([
@@ -129,9 +161,32 @@ class AuthController extends Controller
     {
         Auth::logout();
         
-        // Clear both cookies
-        $accessCookie = cookie()->forget('access_token');
-        $refreshCookie = cookie()->forget('refresh_token');
+        $cookieSettings = $this->getCookieSettings();
+        
+        // Clear both cookies with proper domain settings
+        $accessCookie = cookie(
+            'access_token',
+            '',
+            -1,
+            $cookieSettings['path'],
+            $cookieSettings['domain'],
+            $cookieSettings['secure'],
+            $cookieSettings['httponly'],
+            false,
+            $cookieSettings['samesite']
+        );
+        
+        $refreshCookie = cookie(
+            'refresh_token',
+            '',
+            -1,
+            $cookieSettings['path'],
+            $cookieSettings['domain'],
+            $cookieSettings['secure'],
+            $cookieSettings['httponly'],
+            false,
+            $cookieSettings['samesite']
+        );
         
         return response()->json([
             'status' => 'success',
@@ -139,7 +194,7 @@ class AuthController extends Controller
         ])->withCookie($accessCookie)->withCookie($refreshCookie);
     }
 
-    public function refresh(Request $request)
+   public function refresh(Request $request)
     {
         try {
             $refreshToken = $request->cookie('refresh_token');
@@ -151,7 +206,6 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // Verify the refresh token
             Auth::setToken($refreshToken);
             $claims = Auth::getPayload();
             
@@ -162,19 +216,20 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // Generate new access token
             $newAccessToken = Auth::claims(['type' => 'access'])->setTTL(15)->tokenById(Auth::id());
             
+            $cookieSettings = $this->getCookieSettings();
+
             $accessCookie = cookie(
                 'access_token',
                 $newAccessToken,
                 15,
-                '/',
-                null,
+                $cookieSettings['path'],
+                $cookieSettings['domain'],
+                $cookieSettings['secure'],
+                $cookieSettings['httponly'],
                 false,
-                true,
-                false,
-                'lax'
+                $cookieSettings['samesite']
             );
 
             return response()->json([
