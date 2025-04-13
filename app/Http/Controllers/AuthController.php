@@ -10,17 +10,16 @@ use App\Models\User;
 class AuthController extends Controller
 {
 
-     protected function getCookieSettings()
+    protected function getCookieSettings()
     {
         $isProduction = app()->environment('production');
-        $domain = parse_url(config('app.url'), PHP_URL_HOST);
         
-        // Remove 'www.' if present
-        $domain = preg_replace('/^www\./i', '', $domain);
-        
-        // For production, use the main domain
         if ($isProduction) {
-            // Extract the main domain (e.g., onrender.com from crop-monitoring-laravleapi.onrender.com)
+            $domain = parse_url(config('app.url'), PHP_URL_HOST);
+            // Remove 'www.' if present
+            $domain = preg_replace('/^www\./i', '', $domain);
+            
+            // Extract the main domain
             $parts = explode('.', $domain);
             if (count($parts) > 2) {
                 array_shift($parts); // Remove subdomain
@@ -28,75 +27,86 @@ class AuthController extends Controller
             } else {
                 $domain = '.' . $domain;
             }
+
+            return [
+                'path' => '/',
+                'domain' => null, // Let the browser handle the domain
+                'secure' => true,
+                'httponly' => true,
+                'samesite' => 'None', // Must be 'None' for cross-site requests in production
+            ];
         }
 
-         return [
+        // Development settings
+        return [
             'path' => '/',
-            'domain' => null, // Let the browser handle the domain
-            'secure' => $isProduction,
-            'httponly' => true,
-            'samesite' => $isProduction ? 'None' : 'Lax', // Must be 'None' for cross-site requests in production
+            'domain' => null,     // null works for localhost
+            'secure' => false,    // false for http in development
+            'httponly' => true,   // keep cookies http-only
+            'samesite' => 'Lax', // Lax is fine for development
         ];
     }
 
     public function register(Request $request) 
     {
-    $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|string|email|max:255|unique:users',
-        'password' => 'required|string|min:8|confirmed',
-    ]);
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
 
-    $user = User::create([
-        'name' => $request->name,
-        'email' => $request->email,
-        'password' => Hash::make($request->password),
-    ]);
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
 
-    // Generate both access and refresh tokens
-    $accessToken = Auth::claims(['type' => 'access'])
-        ->setTTL(15)        // 15 minutes
-        ->login($user);
-    
-    $refreshToken = Auth::claims(['type' => 'refresh'])
-        ->setTTL(10080)     // 7 days
-        ->login($user);
+        // Generate both access and refresh tokens
+        $accessToken = Auth::claims(['type' => 'access'])
+            ->setTTL(15)        // 15 minutes
+            ->login($user);
+        
+        $refreshToken = Auth::claims(['type' => 'refresh'])
+            ->setTTL(10080)     // 7 days
+            ->login($user);
 
-    // Set HTTP-only cookies
-    $accessCookie = cookie(
-        'access_token',
-        $accessToken,
-        15,              // 15 minutes
-        '/',
-        null,
-        false,          // secure (set to true in production)
-        true,           // httpOnly
-        false,
-        'lax'
-    );
+        $cookieSettings = $this->getCookieSettings();
 
-    $refreshCookie = cookie(
-        'refresh_token',
-        $refreshToken,
-        10080,          // 7 days
-        '/',
-        null,
-        false,          // secure (set to true in production)
-        true,           // httpOnly
-        false,
-        'lax'
-    );
+        // Set HTTP-only cookies with proper domain settings
+        $accessCookie = cookie(
+            'access_token',
+            $accessToken,
+            15,
+            $cookieSettings['path'],
+            $cookieSettings['domain'],
+            $cookieSettings['secure'],
+            $cookieSettings['httponly'],
+            false,
+            $cookieSettings['samesite']
+        );
 
-    return response()->json([
-        'status' => 'success',
-        'message' => 'User registered successfully',
-        'user' => $user,
-        'authorization' => [
-            'access_token' => $accessToken,
-            'refresh_token' => $refreshToken,
-            'type' => 'bearer',
-        ],
-    ])->withCookie($accessCookie)->withCookie($refreshCookie);
+        $refreshCookie = cookie(
+            'refresh_token',
+            $refreshToken,
+            10080,
+            $cookieSettings['path'],
+            $cookieSettings['domain'],
+            $cookieSettings['secure'],
+            $cookieSettings['httponly'],
+            false,
+            $cookieSettings['samesite']
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'User registered successfully',
+            'user' => $user,
+            'authorization' => [
+                'access_token' => $accessToken,
+                'refresh_token' => $refreshToken,
+                'type' => 'bearer',
+            ],
+        ])->withCookie($accessCookie)->withCookie($refreshCookie);
     }
 
     public function login(Request $request)
@@ -194,7 +204,7 @@ class AuthController extends Controller
         ])->withCookie($accessCookie)->withCookie($refreshCookie);
     }
 
-   public function refresh(Request $request)
+    public function refresh(Request $request)
     {
         try {
             $refreshToken = $request->cookie('refresh_token');
