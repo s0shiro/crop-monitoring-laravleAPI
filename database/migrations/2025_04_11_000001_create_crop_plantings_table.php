@@ -19,6 +19,7 @@ return new class extends Migration
             $table->decimal('area_planted', 10, 2);
             $table->decimal('harvested_area', 10, 2)->default(0);
             $table->decimal('remaining_area', 10, 2);
+            $table->decimal('damaged_area', 10, 2)->default(0); 
             $table->decimal('quantity', 10, 2);
             $table->decimal('expenses', 10, 2)->nullable();
             $table->foreignId('technician_id')->constrained('users')->cascadeOnDelete();
