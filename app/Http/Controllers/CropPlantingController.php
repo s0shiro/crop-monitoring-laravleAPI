@@ -151,6 +151,7 @@ class CropPlantingController extends Controller
                     'expected_harvest_date' => $expectedHarvestDate,
                     'area_planted' => $request->area_planted,
                     'harvested_area' => 0,
+                    'damaged_area' => 0,
                     'remaining_area' => $request->area_planted,
                     'quantity' => $request->quantity,
                     'expenses' => $request->expenses,
@@ -318,6 +319,53 @@ class CropPlantingController extends Controller
 
         $cropPlanting->delete();
         return response()->json(['message' => 'Crop planting record deleted successfully']);
+    }
+
+    public function inspections(Request $request, CropPlanting $cropPlanting): JsonResponse
+    {
+        if (!$this->canAccessCropPlanting($cropPlanting)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'cursor' => 'nullable|integer|min:0',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from'
+        ]);
+
+        $cursor = $request->input('cursor', 0);
+        $limit = 9;
+
+        $query = $cropPlanting->inspections()
+            ->select([
+                'id', 
+                'inspection_date', 
+                'remarks', 
+                'damaged_area',
+                'technician_id',
+                'created_at'
+            ])
+            ->with([
+                'technician:id,name'
+            ])
+            ->when($request->date_from, function ($query) use ($request) {
+                $query->whereDate('inspection_date', '>=', $request->date_from);
+            })
+            ->when($request->date_to, function ($query) use ($request) {
+                $query->whereDate('inspection_date', '<=', $request->date_to);
+            });
+
+        $inspections = $query->orderBy('inspection_date', 'desc')
+            ->skip($cursor)
+            ->take($limit + 1)
+            ->get();
+
+        $nextCursor = $inspections->count() > $limit ? $cursor + $limit : null;
+
+        return response()->json([
+            'data' => $inspections->take($limit),
+            'nextCursor' => $nextCursor
+        ]);
     }
 
     protected function canAccessCropPlanting(CropPlanting $cropPlanting): bool
