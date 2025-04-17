@@ -11,6 +11,7 @@ use App\Http\Controllers\VarietyController;
 use App\Http\Controllers\AssociationController;
 use App\Http\Controllers\FarmerController;
 use App\Http\Controllers\CropPlantingController;
+use App\Http\Controllers\CropInspectionController;
 
 
 // Public routes - no authentication required
@@ -85,4 +86,8 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/crop-plantings/{cropPlanting}', [CropPlantingController::class, 'show']);
     Route::put('/crop-plantings/{cropPlanting}', [CropPlantingController::class, 'update']);
     Route::delete('/crop-plantings/{cropPlanting}', [CropPlantingController::class, 'destroy']);
+    Route::get('crop-plantings/{cropPlanting}/inspections', [CropPlantingController::class, 'inspections']);
+
+    // Crop Inspection Routes
+    Route::apiResource('crop-inspections', CropInspectionController::class);
 });

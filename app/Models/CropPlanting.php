@@ -27,7 +27,8 @@ class CropPlanting extends Model
         'municipality',
         'barangay',
         'harvested_area',
-        'remaining_area'
+        'remaining_area',
+        'damaged_area'
     ];
 
     protected $casts = [
@@ -39,7 +40,8 @@ class CropPlanting extends Model
         'quantity' => 'decimal:2',
         'expenses' => 'decimal:2',
         'latitude' => 'decimal:8',
-        'longitude' => 'decimal:8'
+        'longitude' => 'decimal:8',
+        'damaged_area' => 'decimal:2'
     ];
 
     public function farmer()
@@ -75,6 +77,11 @@ class CropPlanting extends Model
     public function riceDetail()
     {
         return $this->hasOne(RiceDetail::class);
+    }
+
+    public function inspections()
+    {
+        return $this->hasMany(CropInspection::class);
     }
 
     // Harvest tracking methods
