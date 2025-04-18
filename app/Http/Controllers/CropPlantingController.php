@@ -368,6 +368,88 @@ class CropPlantingController extends Controller
         ]);
     }
 
+    public function harvestReports(Request $request, CropPlanting $cropPlanting): JsonResponse
+    {
+        if (!$this->canAccessCropPlanting($cropPlanting)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'cursor' => 'nullable|integer|min:0',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from'
+        ]);
+
+        $cursor = $request->input('cursor', 0);
+        $limit = 9;
+
+        $query = $cropPlanting->harvestReports()
+            ->select([
+                'id', 
+                'harvest_date', 
+                'area_harvested',
+                'total_yield',
+                'profit',
+                'damage_quantity',
+                'technician_id',
+                'created_at'
+            ])
+            ->with([
+                'technician:id,name'
+            ])
+            ->when($request->date_from, function ($query) use ($request) {
+                $query->whereDate('harvest_date', '>=', $request->date_from);
+            })
+            ->when($request->date_to, function ($query) use ($request) {
+                $query->whereDate('harvest_date', '<=', $request->date_to);
+            });
+
+        $reports = $query->orderBy('harvest_date', 'desc')
+            ->skip($cursor)
+            ->take($limit + 1)
+            ->get();
+
+        $nextCursor = $reports->count() > $limit ? $cursor + $limit : null;
+
+        return response()->json([
+            'data' => $reports->take($limit),
+            'nextCursor' => $nextCursor
+        ]);
+    }
+
+    public function harvestSummary(CropPlanting $cropPlanting): JsonResponse
+    {
+        if (!$this->canAccessCropPlanting($cropPlanting)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        if ($cropPlanting->remaining_area > 0) {
+            return response()->json([
+                'message' => 'Cannot generate summary - crop planting still has remaining area.',
+                'remaining_area' => $cropPlanting->remaining_area,
+                'status' => $cropPlanting->status
+            ], 400);
+        }
+
+        $harvestReports = $cropPlanting->harvestReports();
+
+        $summary = [
+            'metrics' => [
+                'total_yield' => $harvestReports->sum('total_yield'),
+                'total_profit' => $harvestReports->sum('profit'),
+                'yield_per_hectare' => round($harvestReports->sum('total_yield') / $cropPlanting->harvested_area, 2),
+                'profit_per_hectare' => round($harvestReports->sum('profit') / $cropPlanting->harvested_area, 2),
+            ],
+            'duration' => [
+                'planting_date' => $cropPlanting->planting_date,
+                'expected_completion' => $cropPlanting->expected_harvest_date,
+                'actual_completion' => $harvestReports->max('harvest_date'),
+            ]
+        ];
+
+        return response()->json(['data' => $summary]);
+    }
+
     protected function canAccessCropPlanting(CropPlanting $cropPlanting): bool
     {
         if (Auth::user()->hasRole('admin')) {
