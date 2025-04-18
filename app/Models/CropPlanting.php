@@ -84,6 +84,11 @@ class CropPlanting extends Model
         return $this->hasMany(CropInspection::class);
     }
 
+    public function harvestReports()
+    {
+        return $this->hasMany(HarvestReport::class);
+    }
+
     // Harvest tracking methods
     public function canBeHarvested(): bool
     {

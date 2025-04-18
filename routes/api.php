@@ -12,6 +12,7 @@ use App\Http\Controllers\AssociationController;
 use App\Http\Controllers\FarmerController;
 use App\Http\Controllers\CropPlantingController;
 use App\Http\Controllers\CropInspectionController;
+use App\Http\Controllers\HarvestReportController;
 
 
 // Public routes - no authentication required
@@ -86,8 +87,15 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/crop-plantings/{cropPlanting}', [CropPlantingController::class, 'show']);
     Route::put('/crop-plantings/{cropPlanting}', [CropPlantingController::class, 'update']);
     Route::delete('/crop-plantings/{cropPlanting}', [CropPlantingController::class, 'destroy']);
-    Route::get('crop-plantings/{cropPlanting}/inspections', [CropPlantingController::class, 'inspections']);
+    Route::get('/crop-plantings/{cropPlanting}/inspections', [CropPlantingController::class, 'inspections']);
+    Route::get('/crop-plantings/{cropPlanting}/harvests', [CropPlantingController::class, 'harvestReports']);
+    Route::get('/crop-plantings/{cropPlanting}/summary', [CropPlantingController::class, 'harvestSummary']);
 
     // Crop Inspection Routes
     Route::apiResource('crop-inspections', CropInspectionController::class);
+
+    // Harvest Report Routes
+    Route::get('/harvest-reports', [HarvestReportController::class, 'index']);
+    Route::post('/harvest-reports', [HarvestReportController::class, 'store']);
+    Route::get('/harvest-reports/{harvestReport}', [HarvestReportController::class, 'show']);
 });
