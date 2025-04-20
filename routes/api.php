@@ -13,6 +13,7 @@ use App\Http\Controllers\FarmerController;
 use App\Http\Controllers\CropPlantingController;
 use App\Http\Controllers\CropInspectionController;
 use App\Http\Controllers\HarvestReportController;
+use App\Http\Controllers\ReportGenerationController;
 
 
 // Public routes - no authentication required
@@ -93,6 +94,10 @@ Route::middleware('auth:api')->group(function () {
 
     // Crop Inspection Routes
     Route::apiResource('crop-inspections', CropInspectionController::class);
+
+    // Report generation routes
+    Route::get('/reports/rice-standing', [ReportGenerationController::class, 'getRiceStandingReport']);
+    Route::get('/reports/rice-harvest', [ReportGenerationController::class, 'getRiceHarvestReport']);
 
     // Harvest Report Routes
     Route::get('/harvest-reports', [HarvestReportController::class, 'index']);
