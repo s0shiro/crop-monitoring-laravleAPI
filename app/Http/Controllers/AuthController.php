@@ -115,6 +115,10 @@ class AuthController extends Controller
     {
         $request->validate([
             'login' => 'required|string',
+            // Custom validation messages
+            ], [
+            'login.required' => 'Please provide your username or email address.',
+            'login.string' => 'Login must be a text value.',
             'password' => 'required|string',
         ]);
 
