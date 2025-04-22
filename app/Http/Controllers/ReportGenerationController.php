@@ -382,4 +382,93 @@ class ReportGenerationController extends Controller
             'farmer_counts' => $uniqueFarmerCounts
         ]);
     }
+
+    /**
+     * Get monthly corn harvest report data
+     */
+    public function getMonthlyCornHarvestReport(Request $request): JsonResponse
+    {
+        // Validate request
+        $request->validate([
+            'municipality' => 'nullable|string'
+        ]);
+
+        $selectedMunicipality = $request->input('municipality');
+
+        // Get corn category ID
+        $cornCategoryId = Category::where('name', 'Corn')->value('id');
+
+        // Get the current month's crop plantings that have harvest reports
+        $query = CropPlanting::with([
+                'crop',
+                'variety',
+                'farmer',
+                'harvestReports' => function($query) {
+                    $query->whereMonth('harvest_date', Carbon::now()->month)
+                          ->whereYear('harvest_date', Carbon::now()->year);
+                }
+            ])
+            ->where('category_id', $cornCategoryId)
+            ->whereHas('harvestReports', function($query) {
+                $query->whereMonth('harvest_date', Carbon::now()->month)
+                      ->whereYear('harvest_date', Carbon::now()->year);
+            });
+
+        // Filter by municipality if provided
+        if ($selectedMunicipality) {
+            $query->where('municipality', 'LIKE', '%' . $selectedMunicipality . '%');
+        }
+
+        // Apply role-based filters
+        if (Auth::user()->hasRole('technician')) {
+            $query->where('technician_id', Auth::id());
+        }
+
+        $plantings = $query->get();
+
+        // Filter out plantings with no harvest reports in the current month
+        $plantings = $plantings->filter(function($planting) {
+            return $planting->harvestReports->isNotEmpty();
+        });
+
+        $data = [];
+        
+        // Process each planting and include all its harvest reports
+        foreach ($plantings as $planting) {
+            // Split municipality name by spaces and properly capitalize each word
+            $municipality = implode(' ', array_map('ucfirst', explode(' ', strtolower($planting->municipality))));
+            
+            // Process all harvest reports for this planting
+            foreach ($planting->harvestReports as $harvestReport) {
+                $data[] = [
+                    'location_id' => [
+                        'barangay' => $planting->barangay,
+                        'municipality' => $municipality,
+                    ],
+                    'area_planted' => $planting->area_planted,
+                    'crop_type' => [
+                        'name' => $planting->crop->name ?? 'Unknown'
+                    ],
+                    'variety' => [
+                        'name' => $planting->variety ? $planting->variety->name : 'Unknown'
+                    ],
+                    'farmer_id' => [
+                        'id' => $planting->farmer->id,
+                        'name' => $planting->farmer->name
+                    ],
+                    'harvest_records' => [
+                        [
+                            'area_harvested' => $harvestReport->area_harvested,
+                            'yield_quantity' => $harvestReport->total_yield ?? 0,
+                            'harvest_date' => $harvestReport->harvest_date
+                        ]
+                    ]
+                ];
+            }
+        }
+
+        return response()->json([
+            'data' => $data
+        ]);
+    }
 }
