@@ -20,6 +20,7 @@ class UserController extends Controller
         return response()->json([
             'user' => [
                 'id' => $user->id,
+                'username' => $user->username,
                 'name' => $user->name,
                 'email' => $user->email,
                 'created_at' => $user->created_at,
@@ -37,6 +38,7 @@ class UserController extends Controller
         $users = User::with('roles')->get()->map(function ($user) {
             return [
                 'id' => $user->id,
+                'username' => $user->username,
                 'name' => $user->name,
                 'email' => $user->email,
                 'created_at' => $user->created_at,
@@ -53,6 +55,7 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $validator = validator($request->all(), [
+            'username' => 'required|string|max:255|unique:users,username',
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
@@ -67,6 +70,7 @@ class UserController extends Controller
         }
 
         $user = User::create([
+            'username' => $request->username,
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
@@ -84,6 +88,7 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $request->validate([
+            'username' => 'sometimes|string|max:255|unique:users,username,' . $user->id,
             'name' => 'sometimes|string|max:255',
             'email' => 'sometimes|email|unique:users,email,' . $user->id,
             'password' => 'nullable|string|min:6',
@@ -91,6 +96,7 @@ class UserController extends Controller
         ]);
 
         $user->update([
+            'username' => $request->username ?? $user->username,
             'name' => $request->name ?? $user->name,
             'email' => $request->email ?? $user->email,
             'password' => $request->password ? Hash::make($request->password) : $user->password,
@@ -120,6 +126,7 @@ class UserController extends Controller
         return response()->json([
             'user' => [
                 'id' => $user->id,
+                'username' => $user->username,
                 'name' => $user->name,
                 'email' => $user->email,
                 'created_at' => $user->created_at,

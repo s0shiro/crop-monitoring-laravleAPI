@@ -69,6 +69,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $adminUser = User::firstOrCreate(
             ['email' => 'admin@example.com'],
             [
+            'username' => 'admin',
             'name' => 'Admin User',
             'password' => Hash::make('password'),
             ]
@@ -77,6 +78,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $technicianUser = User::firstOrCreate(
             ['email' => 'technician@example.com'],
             [
+            'username' => 'technician',
             'name' => 'Technician User',
             'password' => Hash::make('password'),
             ]
@@ -85,6 +87,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $coordinatorUser = User::firstOrCreate(
             ['email' => 'coordinator@example.com'],
             [
+            'username' => 'coordinator',
             'name' => 'Coordinator User',
             'password' => Hash::make('password'),
             ]
