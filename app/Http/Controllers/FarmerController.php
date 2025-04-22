@@ -84,15 +84,29 @@ class FarmerController extends Controller
         }
     }
 
-    public function show(Farmer $farmer): JsonResponse
+    public function show($id): JsonResponse
     {
-        if (!Auth::user()->hasRole('admin') && !$this->technicianService->canManageFarmer($farmer)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        try {
+            if (!is_numeric($id)) {
+                return response()->json([
+                    'message' => 'Invalid farmer ID format. ID must be a number.'
+                ], 400);
+            }
 
-        return response()->json([
-            'data' => $farmer->load(['association', 'technician'])
-        ]);
+            $farmer = Farmer::findOrFail($id);
+
+            if (!Auth::user()->hasRole('admin') && !$this->technicianService->canManageFarmer($farmer)) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+
+            return response()->json([
+                'data' => $farmer->load(['association', 'technician'])
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Farmer not found'], 404);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Invalid farmer ID provided'], 400);
+        }
     }
 
     public function update(Request $request, Farmer $farmer): JsonResponse
