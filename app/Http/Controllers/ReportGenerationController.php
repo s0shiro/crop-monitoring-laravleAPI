@@ -471,4 +471,87 @@ class ReportGenerationController extends Controller
             'data' => $data
         ]);
     }
+
+    /**
+     * Get corn standing report data
+     */
+    public function getCornStandingReport(Request $request): JsonResponse
+    {
+        $request->validate([
+            'municipality' => 'nullable|string'
+        ]);
+
+        // Get corn category ID
+        $cornCategoryId = Category::where('name', 'Corn')->value('id');
+        
+        // Define growth stages
+        $stages = [
+            'newly planted/seedling',
+            'vegetative',
+            'reproductive',
+            'maturing'
+        ];
+
+        // Initialize query for all corn plantings
+        $baseQuery = CropPlanting::with(['crop', 'variety', 'farmer'])
+            ->where('category_id', $cornCategoryId)
+            ->where('status', 'standing');
+
+        // Get all unique municipalities for the dropdown (before applying municipality filter)
+        $allMunicipalities = $baseQuery->clone()->distinct()->pluck('municipality')->toArray();
+
+        // Apply municipality filter if provided for the data
+        if ($request->has('municipality')) {
+            $baseQuery->where('municipality', 'LIKE', '%' . $request->municipality . '%');
+        }
+
+        // Apply role-based filters
+        if (Auth::user()->hasRole('technician')) {
+            $baseQuery->where('technician_id', Auth::id());
+        }
+
+        $plantings = $baseQuery->get();
+
+        // Initialize data structure
+        $processedData = [];
+
+        // Process each planting
+        foreach ($plantings as $planting) {
+            $barangay = $planting->barangay;
+            $municipality = $planting->municipality;
+            
+            // Determine corn type based on crop name (Yellow/White)
+            $crop = $planting->crop;
+            $cornType = $crop && str_contains(strtolower($crop->name), 'white') ? 'WHITE' : 'YELLOW';
+            
+            // Get stage from remarks
+            $stage = strtolower($planting->remarks);
+
+            // Initialize municipality and barangay data structure if needed
+            if (!isset($processedData[$municipality])) {
+                $processedData[$municipality] = [];
+            }
+            if (!isset($processedData[$municipality][$barangay])) {
+                $processedData[$municipality][$barangay] = [
+                    'YELLOW' => array_fill_keys($stages, 0),
+                    'WHITE' => array_fill_keys($stages, 0),
+                    'GRAND TOTAL' => array_fill_keys($stages, 0)
+                ];
+            }
+
+            // Add area to appropriate categories
+            $processedData[$municipality][$barangay][$cornType][$stage] += $planting->area_planted;
+            $processedData[$municipality][$barangay]['GRAND TOTAL'][$stage] += $planting->area_planted;
+        }
+
+        return response()->json([
+            'data' => $processedData,
+            'municipalities' => $allMunicipalities, // Return all municipalities regardless of filter
+            'stages' => $stages,
+            'meta' => [
+                'generated_at' => now()->format('F d, Y'),
+                'user' => Auth::user()->name
+            ]
+        ]);
+    }
 }
