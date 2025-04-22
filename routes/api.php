@@ -98,6 +98,7 @@ Route::middleware('auth:api')->group(function () {
     // Report generation routes
     Route::get('/reports/rice-standing', [ReportGenerationController::class, 'getRiceStandingReport']);
     Route::get('/reports/rice-harvest', [ReportGenerationController::class, 'getRiceHarvestReport']);
+    Route::get('/reports/rice-planting/monthly', [ReportGenerationController::class, 'getMonthlyRicePlantingReport']);
 
     // Harvest Report Routes
     Route::get('/harvest-reports', [HarvestReportController::class, 'index']);

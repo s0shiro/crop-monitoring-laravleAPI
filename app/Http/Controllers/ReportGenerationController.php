@@ -303,4 +303,83 @@ class ReportGenerationController extends Controller
             return $start->format('M d') . ' - ' . $end->format('M d, Y');
         }
     }
+
+    /**
+     * Get monthly rice planting report data
+     */
+    public function getMonthlyRicePlantingReport(): JsonResponse
+    {
+        // Get rice category ID
+        $riceCategoryId = Category::where('name', 'Rice')->value('id');
+
+        $query = CropPlanting::with([
+                'variety',
+                'farmer',
+                'riceDetail'
+            ])
+            ->where('category_id', $riceCategoryId)
+            ->whereMonth('planting_date', Carbon::now()->month)
+            ->whereYear('planting_date', Carbon::now()->year);
+
+        // Apply role-based filters
+        if (Auth::user()->hasRole('technician')) {
+            $query->where('technician_id', Auth::id());
+        }
+
+        $plantings = $query->get();
+
+        // Group farmers by municipality to count unique farmers
+        $farmersByMunicipality = [];
+        foreach ($plantings as $planting) {
+            // Split municipality name by spaces and properly capitalize each word
+            $municipality = implode(' ', array_map('ucfirst', explode(' ', strtolower($planting->municipality))));
+            if (!isset($farmersByMunicipality[$municipality])) {
+                $farmersByMunicipality[$municipality] = new \Illuminate\Support\Collection();
+            }
+            $farmersByMunicipality[$municipality]->push($planting->farmer->id);
+        }
+
+        // Count unique farmers per municipality
+        $uniqueFarmerCounts = [];
+        foreach ($farmersByMunicipality as $municipality => $farmerIds) {
+            $uniqueFarmerCounts[$municipality] = $farmerIds->unique()->count();
+        }
+
+        $data = $plantings->map(function ($planting) {
+            // Split municipality name by spaces and properly capitalize each word
+            $municipality = implode(' ', array_map('ucfirst', explode(' ', strtolower($planting->municipality))));
+            
+            return [
+                'location_id' => [
+                    'barangay' => $planting->barangay,
+                    'municipality' => $municipality,
+                ],
+                'area_planted' => $planting->area_planted,
+                'planting_date' => $planting->planting_date,
+                'category_specific' => [
+                    'landType' => $planting->riceDetail ? $planting->riceDetail->land_type : 'lowland',
+                    'waterSupply' => $planting->riceDetail ? $planting->riceDetail->water_supply : 'rainfed',
+                    'classification' => $planting->riceDetail ? $planting->riceDetail->classification : 'Good Quality'
+                ],
+                'crop_categoryId' => [
+                    'name' => 'Rice'
+                ],
+                'crop_type' => [
+                    'name' => $planting->crop->name ?? 'Palay'
+                ],
+                'variety' => [
+                    'name' => $planting->variety ? $planting->variety->name : 'Unknown'
+                ],
+                'farmer_id' => [
+                    'id' => $planting->farmer->id,
+                    'name' => $planting->farmer->name
+                ]
+            ];
+        });
+
+        return response()->json([
+            'data' => $data,
+            'farmer_counts' => $uniqueFarmerCounts
+        ]);
+    }
 }
