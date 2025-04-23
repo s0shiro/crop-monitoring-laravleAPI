@@ -554,4 +554,91 @@ class ReportGenerationController extends Controller
             ]
         ]);
     }
+
+    /**
+     * Get monthly corn planting report data
+     */
+    public function getMonthlyPlantingCornReport(Request $request): JsonResponse
+    {
+        // Validate request
+        $request->validate([
+            'municipality' => 'nullable|string'
+        ]);
+
+        $selectedMunicipality = $request->input('municipality');
+        
+        // Get corn category ID
+        $cornCategoryId = Category::where('name', 'Corn')->value('id');
+        
+        $query = CropPlanting::with(['crop', 'variety', 'farmer'])
+            ->where('category_id', $cornCategoryId)
+            ->whereMonth('planting_date', Carbon::now()->month)
+            ->whereYear('planting_date', Carbon::now()->year)
+            ->where('status', 'standing');
+            
+        // Apply municipality filter if provided
+        if ($selectedMunicipality) {
+            $query->where('municipality', $selectedMunicipality);
+        }
+
+        // Apply role-based filters
+        if (Auth::user()->hasRole('technician')) {
+            $query->where('technician_id', Auth::id());
+        }
+        
+        $plantings = $query->get();
+        
+        $processedData = [];
+
+        // Process each planting record
+        foreach ($plantings as $planting) {
+            $municipality = $planting->municipality;
+            $barangay = $planting->barangay;
+            $farmerName = $planting->farmer->name;
+            
+            // Determine corn type (Yellow/White) and variety type (Hybrid/Traditional/Green Corn)
+            $cropType = str_contains(strtolower($planting->crop->name), 'white') ? 'White' : 'Yellow';
+            $varietyName = $planting->variety ? strtolower($planting->variety->name) : '';
+            
+            $varietyType = 'Traditional'; // Default variety type
+            if (str_contains($varietyName, 'hybrid')) {
+                $varietyType = 'Hybrid';
+            } elseif (str_contains($varietyName, 'sweet') || str_contains($varietyName, 'green')) {
+                $varietyType = 'Green Corn/Sweet Corn';
+            }
+            
+            // Initialize data structure for barangay if not exists
+            if (!isset($processedData[$barangay])) {
+                $processedData[$barangay] = [
+                    'Yellow' => [
+                        'Hybrid' => ['area' => 0, 'entries' => []],
+                        'Traditional' => ['area' => 0, 'entries' => []],
+                        'Green Corn/Sweet Corn' => ['area' => 0, 'entries' => []]
+                    ],
+                    'White' => [
+                        'Hybrid' => ['area' => 0, 'entries' => []],
+                        'Traditional' => ['area' => 0, 'entries' => []],
+                        'Green Corn/Sweet Corn' => ['area' => 0, 'entries' => []]
+                    ],
+                    'total' => 0
+                ];
+            }
+            
+            // Add planting data
+            $processedData[$barangay][$cropType][$varietyType]['area'] += $planting->area_planted;
+            $processedData[$barangay][$cropType][$varietyType]['entries'][] = [
+                'farmer' => $farmerName,
+                'area' => $planting->area_planted
+            ];
+            $processedData[$barangay]['total'] += $planting->area_planted;
+        }
+
+        // Get all municipalities for dropdown (before applying municipality filter)
+        $municipalities = ['Boac', 'Buenavista', 'Gasan', 'Mogpog', 'Santa Cruz', 'Torrijos'];
+
+        return response()->json([
+            'data' => $processedData,
+            'municipalities' => $municipalities
+        ]);
+    }
 }

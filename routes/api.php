@@ -101,6 +101,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/reports/rice-planting/monthly', [ReportGenerationController::class, 'getMonthlyRicePlantingReport']);
     Route::get('/reports/corn-harvest/monthly', [ReportGenerationController::class, 'getMonthlyCornHarvestReport']);
     Route::get('/reports/corn-standing', [ReportGenerationController::class, 'getCornStandingReport']);
+    Route::get('/reports/corn-planting/monthly', [ReportGenerationController::class, 'getMonthlyPlantingCornReport']);
 
     // Harvest Report Routes
     Route::get('/harvest-reports', [HarvestReportController::class, 'index']);
