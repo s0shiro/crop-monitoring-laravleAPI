@@ -95,13 +95,15 @@ Route::middleware('auth:api')->group(function () {
     // Crop Inspection Routes
     Route::apiResource('crop-inspections', CropInspectionController::class);
 
-    // Report generation routes
-    Route::get('/reports/rice-standing', [ReportGenerationController::class, 'getRiceStandingReport']);
-    Route::get('/reports/rice-harvest', [ReportGenerationController::class, 'getRiceHarvestReport']);
-    Route::get('/reports/rice-planting/monthly', [ReportGenerationController::class, 'getMonthlyRicePlantingReport']);
-    Route::get('/reports/corn-harvest/monthly', [ReportGenerationController::class, 'getMonthlyCornHarvestReport']);
-    Route::get('/reports/corn-standing', [ReportGenerationController::class, 'getCornStandingReport']);
-    Route::get('/reports/corn-planting/monthly', [ReportGenerationController::class, 'getMonthlyPlantingCornReport']);
+    // Report Generation Routes
+        Route::get('/reports/rice-standing', [ReportGenerationController::class, 'getRiceStandingReport']);
+        Route::get('/reports/rice-harvest', [ReportGenerationController::class, 'getRiceHarvestReport']);
+        Route::get('/reports/rice-planting/monthly', [ReportGenerationController::class, 'getMonthlyRicePlantingReport']);
+        Route::get('/reports/corn-harvest/monthly', [ReportGenerationController::class, 'getMonthlyCornHarvestReport']);
+        Route::get('/reports/corn-standing', [ReportGenerationController::class, 'getCornStandingReport']);
+        Route::get('/reports/corn-planting/monthly', [ReportGenerationController::class, 'getMonthlyPlantingCornReport']);
+        Route::get('/reports/high-value', [ReportGenerationController::class, 'getHighValueReport']);
+
 
     // Harvest Report Routes
     Route::get('/harvest-reports', [HarvestReportController::class, 'index']);

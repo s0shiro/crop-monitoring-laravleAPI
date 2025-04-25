@@ -115,28 +115,23 @@ class CropPlantingController extends Controller
             'barangay' => 'required|string|max:100',
         ];
 
-        // Validate base rules first
-        $request->validate($validationRules);
+        // Get category name
+        $categoryName = Category::findOrFail($request->category_id)->name;
 
-        // Get category name after validation
+        // Add category-specific validation
+        $additionalRules = [];
+        if ($categoryName === 'High Value') {
+            $additionalRules['hvc_classification'] = 'required|string|in:lowland vegetable,upland vegetable,legumes,spice,rootcrop,fruit';
+        } elseif ($categoryName === 'Rice') {
+            $additionalRules['rice_classification'] = 'required|string';
+            $additionalRules['water_supply'] = 'required|string';
+            $additionalRules['land_type'] = 'nullable|string';
+        }
+
+        // Validate all rules
+        $request->validate($validationRules + $additionalRules);
+
         try {
-            $categoryName = Category::findOrFail($request->category_id)->name;
-
-            // Add category-specific validation
-            $additionalRules = [];
-            if ($categoryName === 'High Value') {
-                $additionalRules['hvc_classification'] = 'required|string';
-            } elseif ($categoryName === 'Rice') {
-                $additionalRules['rice_classification'] = 'required|string';
-                $additionalRules['water_supply'] = 'required|string';
-                $additionalRules['land_type'] = 'nullable|string';
-            }
-
-            // Validate additional rules if any
-            if (!empty($additionalRules)) {
-                $request->validate($additionalRules);
-            }
-
             // Proceed with database transaction
             DB::transaction(function () use ($request, $categoryName) {
                 $maturityDays = Variety::where('id', $request->variety_id)->value('maturity_days');
@@ -178,7 +173,7 @@ class CropPlantingController extends Controller
                 }
             });
 
-            return response()->json(['message' => 'Crop planting record created successfully'], 201);
+            return response()->json(['message' => 'Crop planting record created successfully']);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error creating record',

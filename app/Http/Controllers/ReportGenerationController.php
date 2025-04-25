@@ -641,4 +641,79 @@ class ReportGenerationController extends Controller
             'municipalities' => $municipalities
         ]);
     }
+
+    /**
+     * Get high value crop report data
+     */
+    public function getHighValueReport(): JsonResponse
+    {
+        $hvcCategoryId = Category::where('name', 'High Value')->value('id');
+        $currentMonth = now()->month;
+        $currentYear = now()->year;
+        
+        // Get existing plantings (all standing plantings) with hvcDetail relationship
+        $existingPlantings = CropPlanting::with(['crop', 'hvcDetail'])
+            ->where('category_id', $hvcCategoryId)
+            ->where('status', 'standing')
+            ->get();
+            
+        // Get current month's plantings with hvcDetail relationship
+        $currentMonthPlantings = CropPlanting::with(['crop', 'hvcDetail'])
+            ->where('category_id', $hvcCategoryId)
+            ->whereMonth('planting_date', $currentMonth)
+            ->whereYear('planting_date', $currentYear)
+            ->get();
+            
+        // Get production/harvest data for the current month
+        $harvestReports = HarvestReport::with(['cropPlanting.crop', 'cropPlanting.hvcDetail'])
+            ->whereHas('cropPlanting', function($query) use ($hvcCategoryId) {
+                $query->where('category_id', $hvcCategoryId);
+            })
+            ->whereMonth('harvest_date', $currentMonth)
+            ->whereYear('harvest_date', $currentYear)
+            ->get();
+        
+        // Process existing plantings
+        $existing = $existingPlantings->map(function ($planting) {
+            return [
+                'classification' => $planting->hvcDetail ? $planting->hvcDetail->classification : 'lowland vegetable',
+                'crop_type' => [
+                    'id' => $planting->crop->id,
+                    'name' => $planting->crop->name
+                ],
+                'area_planted' => $planting->area_planted
+            ];
+        });
+        
+        // Process current month plantings
+        $currentMonth = $currentMonthPlantings->map(function ($planting) {
+            return [
+                'classification' => $planting->hvcDetail ? $planting->hvcDetail->classification : 'lowland vegetable',
+                'crop_type' => [
+                    'id' => $planting->crop->id,
+                    'name' => $planting->crop->name
+                ],
+                'area_planted' => $planting->area_planted
+            ];
+        });
+        
+        // Process production data
+        $production = $harvestReports->groupBy('cropPlanting.crop.name')
+            ->map(function ($reports) {
+                $firstReport = $reports->first();
+                return [
+                    'name' => $firstReport->cropPlanting->crop->name,
+                    'classification' => $firstReport->cropPlanting->hvcDetail ? 
+                        $firstReport->cropPlanting->hvcDetail->classification : 'lowland vegetable',
+                    'yield_quantity' => $reports->sum('total_yield')
+                ];
+            })
+            ->values();
+            
+        return response()->json([
+            'existing' => $existing,
+            'currentMonth' => $currentMonth,
+            'production' => $production
+        ]);
+    }
 }
