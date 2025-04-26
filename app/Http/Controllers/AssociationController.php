@@ -17,7 +17,7 @@ class AssociationController extends Controller
         ]);
 
         $cursor = $request->input('cursor', 0);
-        $limit = 10; // Number of associations per page
+        $limit = 9; // Number of associations per page
 
         $associations = Association::withCount('farmers')
             ->orderBy('id', 'desc')
@@ -77,6 +77,7 @@ class AssociationController extends Controller
             'association' => $association,
             'farmers' => $farmers->take($limit),
             'genderStats' => $genderStats,
+            'totalFarmers' => $association->farmers()->count(),
             'nextCursor' => $nextCursor,
         ]);
     }
