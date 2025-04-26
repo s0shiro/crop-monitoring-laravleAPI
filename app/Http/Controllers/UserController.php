@@ -33,20 +33,36 @@ class UserController extends Controller
     /**
      * Get all users (Only for Admin)
      */
-    public function index()
+    public function index(Request $request)
     {
-        $users = User::with('roles')->get()->map(function ($user) {
-            return [
-                'id' => $user->id,
-                'username' => $user->username,
-                'name' => $user->name,
-                'email' => $user->email,
-                'created_at' => $user->created_at,
-                'roles' => $user->roles->pluck('name')
-            ];
-        });
+        $request->validate([
+            'cursor' => 'nullable|integer|min:0',
+        ]);
 
-        return response()->json($users);
+        $cursor = $request->input('cursor', 0);
+        $limit = 9;
+
+        $users = User::with('roles')
+            ->skip($cursor)
+            ->take($limit + 1)
+            ->get()
+            ->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'created_at' => $user->created_at,
+                    'roles' => $user->roles->pluck('name')
+                ];
+            });
+
+        $nextCursor = $users->count() > $limit ? $cursor + $limit : null;
+
+        return response()->json([
+            'data' => $users->take($limit),
+            'nextCursor' => $nextCursor
+        ]);
     }
 
     /**
