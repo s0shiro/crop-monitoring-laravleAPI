@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     libpq-dev \
     libzip-dev \
+    supervisor \
     && docker-php-ext-install pdo pdo_pgsql mbstring zip exif pcntl
 
 # Install Composer
@@ -27,12 +28,18 @@ COPY . .
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
+# Set up supervisor configuration
+COPY docker/supervisor.conf /etc/supervisor/conf.d/supervisor.conf
+
 # Set permissions
 RUN chown -R www-data:www-data /var/www \
     && chmod -R 755 /var/www/storage
 
+# Create supervisor log directory
+RUN mkdir -p /var/log/supervisor
+
 # Expose port
 EXPOSE 8000
 
-# Start Laravel server
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+# Start supervisor (which will manage both PHP-FPM and Laravel scheduler)
+CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
