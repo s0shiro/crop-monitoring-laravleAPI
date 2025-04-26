@@ -20,4 +20,9 @@ class Crop extends Model
     {
         return $this->hasMany(Variety::class);
     }
+
+    public function cropPlantings()
+    {
+        return $this->hasMany(CropPlanting::class);
+    }
 }

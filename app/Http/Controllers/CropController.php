@@ -49,8 +49,9 @@ class CropController extends Controller
         $cursor = $request->input('cursor', 0);
         $limit = 9; // Number of crops per page
 
-        $crops = Crop::where('category_id', $request->category_id)
-            ->withCount('varieties') // Include the count of varieties
+        $crops = Crop::select('crops.*')
+            ->where('category_id', $request->category_id)
+            ->withCount(['varieties', 'cropPlantings']) // Include both counts
             ->orderBy('id', 'desc') // Order by descending
             ->skip($cursor)
             ->take($limit + 1) // Fetch one extra to check for next page
