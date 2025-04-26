@@ -13,8 +13,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withSchedule(function (Schedule $schedule) {
-        // Check harvest status daily at midnight
-        $schedule->command('crop:check-harvest-status')->daily();
+        // Use different schedule frequencies based on environment
+        if (app()->environment('local')) {
+            // Run every minute in local development
+            $schedule->command('crop:check-harvest-status')->everyMinute();
+        } else {
+            // Run daily at midnight in production
+            $schedule->command('crop:check-harvest-status')->daily();
+        }
     })
     ->withMiddleware(function (Middleware $middleware) {
         // Register your custom JWT middleware
