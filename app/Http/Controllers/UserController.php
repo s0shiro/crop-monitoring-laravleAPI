@@ -37,13 +37,41 @@ class UserController extends Controller
     {
         $request->validate([
             'cursor' => 'nullable|integer|min:0',
+            'search' => 'nullable|string',
+            'role' => 'nullable|string|in:technician,coordinator,all',
+            'sortBy' => 'nullable|string|in:name,email,created_at',
+            'sortDirection' => 'nullable|string|in:asc,desc',
         ]);
 
         $cursor = $request->input('cursor', 0);
         $limit = 9;
+        $search = $request->input('search');
+        $role = $request->input('role');
+        $sortBy = $request->input('sortBy', 'created_at');
+        $sortDirection = $request->input('sortDirection', 'desc');
 
-        $users = User::with('roles')
-            ->skip($cursor)
+        $query = User::with('roles');
+
+        // Apply search filter
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('username', 'like', "%{$search}%");
+            });
+        }
+
+        // Apply role filter
+        if ($role && $role !== 'all') {
+            $query->whereHas('roles', function($q) use ($role) {
+                $q->where('name', $role);
+            });
+        }
+
+        // Apply sorting
+        $query->orderBy($sortBy, $sortDirection);
+
+        $users = $query->skip($cursor)
             ->take($limit + 1)
             ->get()
             ->map(function ($user) {
@@ -61,7 +89,8 @@ class UserController extends Controller
 
         return response()->json([
             'data' => $users->take($limit),
-            'nextCursor' => $nextCursor
+            'nextCursor' => $nextCursor,
+            'total' => User::count() // Add total for pagination info
         ]);
     }
 
