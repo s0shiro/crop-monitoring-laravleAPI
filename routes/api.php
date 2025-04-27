@@ -14,6 +14,7 @@ use App\Http\Controllers\CropPlantingController;
 use App\Http\Controllers\CropInspectionController;
 use App\Http\Controllers\HarvestReportController;
 use App\Http\Controllers\ReportGenerationController;
+use App\Http\Controllers\NotificationController;
 
 
 // Public routes - no authentication required
@@ -96,17 +97,25 @@ Route::middleware('auth:api')->group(function () {
     Route::apiResource('crop-inspections', CropInspectionController::class);
 
     // Report Generation Routes
-        Route::get('/reports/rice-standing', [ReportGenerationController::class, 'getRiceStandingReport']);
-        Route::get('/reports/rice-harvest', [ReportGenerationController::class, 'getRiceHarvestReport']);
-        Route::get('/reports/rice-planting/monthly', [ReportGenerationController::class, 'getMonthlyRicePlantingReport']);
-        Route::get('/reports/corn-harvest/monthly', [ReportGenerationController::class, 'getMonthlyCornHarvestReport']);
-        Route::get('/reports/corn-standing', [ReportGenerationController::class, 'getCornStandingReport']);
-        Route::get('/reports/corn-planting/monthly', [ReportGenerationController::class, 'getMonthlyPlantingCornReport']);
-        Route::get('/reports/high-value', [ReportGenerationController::class, 'getHighValueReport']);
+    Route::get('/reports/rice-standing', [ReportGenerationController::class, 'getRiceStandingReport']);
+    Route::get('/reports/rice-harvest', [ReportGenerationController::class, 'getRiceHarvestReport']);
+    Route::get('/reports/rice-planting/monthly', [ReportGenerationController::class, 'getMonthlyRicePlantingReport']);
+    Route::get('/reports/corn-harvest/monthly', [ReportGenerationController::class, 'getMonthlyCornHarvestReport']);
+    Route::get('/reports/corn-standing', [ReportGenerationController::class, 'getCornStandingReport']);
+    Route::get('/reports/corn-planting/monthly', [ReportGenerationController::class, 'getMonthlyPlantingCornReport']);
+    Route::get('/reports/high-value', [ReportGenerationController::class, 'getHighValueReport']);
 
 
     // Harvest Report Routes
     Route::get('/harvest-reports', [HarvestReportController::class, 'index']);
     Route::post('/harvest-reports', [HarvestReportController::class, 'store']);
     Route::get('/harvest-reports/{harvestReport}', [HarvestReportController::class, 'show']);
+});
+
+// Notification routes
+Route::middleware('auth:api')->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::patch('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
 });

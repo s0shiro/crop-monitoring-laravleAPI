@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\CropPlanting;
+use App\Notifications\HarvestStatusNotification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
@@ -16,17 +17,30 @@ class CheckHarvestStatus extends Command
     {
         try {
             // Use database transaction for better performance and data consistency
-            $affected = DB::transaction(function () {
-                return CropPlanting::query()
+            $updatedPlantings = DB::transaction(function () {
+                $plantingsToUpdate = CropPlanting::query()
                     ->where('status', '!=', 'harvest')
                     ->whereNotNull('expected_harvest_date')
                     ->where('expected_harvest_date', '<=', now()->startOfDay())
                     ->where('remaining_area', '>', 0)
-                    ->update([
+                    ->get();
+
+                foreach ($plantingsToUpdate as $planting) {
+                    $planting->update([
                         'status' => 'harvest',
                         'updated_at' => now()
                     ]);
+
+                    // Send notification to the technician
+                    if ($planting->technician) {
+                        $planting->technician->notify(new HarvestStatusNotification($planting));
+                    }
+                }
+
+                return $plantingsToUpdate;
             });
+
+            $affected = $updatedPlantings->count();
 
             // Only log if there were actual changes
             if ($affected > 0) {
@@ -35,7 +49,7 @@ class CheckHarvestStatus extends Command
                     'affected_count' => $affected,
                     'environment' => app()->environment()
                 ]);
-                $this->info("Updated {$affected} crop planting(s) to harvest status.");
+                $this->info("Updated {$affected} crop planting(s) to harvest status and sent notifications.");
             } else {
                 // Debug level for no changes to avoid filling logs
                 Log::debug("No crop plantings needed harvest status update", [
