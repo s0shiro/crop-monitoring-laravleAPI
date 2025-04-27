@@ -18,8 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // Run every minute in local development
             $schedule->command('crop:check-harvest-status')->everyMinute();
         } else {
-            // Run daily at midnight in production
-            $schedule->command('crop:check-harvest-status')->daily();
+            // Run every hour in production (24 times daily)
+            $schedule->command('crop:check-harvest-status')->hourly();
         }
     })
     ->withMiddleware(function (Middleware $middleware) {
