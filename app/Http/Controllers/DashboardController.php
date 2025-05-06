@@ -22,6 +22,8 @@ class DashboardController extends Controller
             return $this->getAdminStats();
         } elseif (Auth::user()->hasRole('technician')) {
             return $this->getTechnicianStats();
+        } elseif (Auth::user()->hasRole('coordinator')) {
+            return $this->getCoordinatorStats();
         }
 
         return response()->json(['message' => 'Unauthorized'], 403);
@@ -225,6 +227,78 @@ class DashboardController extends Controller
             ],
             'monitoring' => [
                 'upcoming_inspections' => $upcomingInspections,
+                'recent_alerts' => $recentAlerts,
+            ]
+        ]);
+    }
+
+    private function getCoordinatorStats(): JsonResponse
+    {
+        $coordinatorId = Auth::id();
+        $startOfMonth = Carbon::now()->startOfMonth();
+
+        // Get total technicians count
+        $totalTechnicians = User::where('coordinator_id', $coordinatorId)
+            ->whereHas('roles', function($query) {
+                $query->where('name', 'technician');
+            })->count();
+
+        // Get total active crop plantings under coordinator's technicians
+        $activeCropPlantings = CropPlanting::whereHas('technician', function($query) use ($coordinatorId) {
+            $query->where('coordinator_id', $coordinatorId);
+        })
+        ->where('status', 'standing')
+        ->count();
+
+        // Get total farmers under coordinator's technicians
+        $totalFarmers = Farmer::whereHas('technician', function($query) use ($coordinatorId) {
+            $query->where('coordinator_id', $coordinatorId);
+        })->count();
+
+        // Get recent inspections by coordinator's technicians
+        $recentInspections = CropInspection::whereHas('technician', function($query) use ($coordinatorId) {
+            $query->where('coordinator_id', $coordinatorId);
+        })
+        ->with(['cropPlanting:id,farmer_id', 'cropPlanting.farmer:id,name', 'technician:id,name'])
+        ->orderBy('inspection_date', 'desc')
+        ->limit(5)
+        ->get()
+        ->map(function ($inspection) {
+            return [
+                'date' => $inspection->inspection_date,
+                'farmer_name' => $inspection->cropPlanting->farmer->name ?? 'N/A',
+                'technician_name' => $inspection->technician->name ?? 'N/A',
+                'remarks' => $inspection->remarks,
+            ];
+        });
+
+        // Get alerts (damage reports) from coordinator's technicians
+        $recentAlerts = CropInspection::whereHas('technician', function($query) use ($coordinatorId) {
+            $query->where('coordinator_id', $coordinatorId);
+        })
+        ->where('damaged_area', '>', 0)
+        ->with(['cropPlanting:id,farmer_id', 'cropPlanting.farmer:id,name', 'technician:id,name'])
+        ->orderBy('created_at', 'desc')
+        ->limit(5)
+        ->get()
+        ->map(function ($inspection) {
+            return [
+                'date' => $inspection->inspection_date,
+                'farmer_name' => $inspection->cropPlanting->farmer->name ?? 'N/A',
+                'technician_name' => $inspection->technician->name ?? 'N/A',
+                'damaged_area' => $inspection->damaged_area,
+                'remarks' => $inspection->remarks,
+            ];
+        });
+
+        return response()->json([
+            'overview' => [
+                'total_technicians' => $totalTechnicians,
+                'active_crop_plantings' => $activeCropPlantings,
+                'total_farmers' => $totalFarmers,
+            ],
+            'monitoring' => [
+                'recent_inspections' => $recentInspections,
                 'recent_alerts' => $recentAlerts,
             ]
         ]);
