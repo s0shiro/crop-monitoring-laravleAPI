@@ -15,7 +15,7 @@ use App\Http\Controllers\CropInspectionController;
 use App\Http\Controllers\HarvestReportController;
 use App\Http\Controllers\ReportGenerationController;
 use App\Http\Controllers\NotificationController;
-
+use App\Http\Controllers\DashboardController;
 
 // Public routes - no authentication required
 Route::post('/register', [AuthController::class, 'register']);
@@ -27,6 +27,8 @@ Route::get('/login', function () {
 
 // Protected routes - JWT authentication required
 Route::middleware('auth:api')->group(function () {
+    // Dashboard routes
+    Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 
     Route::get('/user', [UserController::class, 'profile']);
 
