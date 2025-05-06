@@ -50,7 +50,7 @@ class UserController extends Controller
         $sortBy = $request->input('sortBy', 'created_at');
         $sortDirection = $request->input('sortDirection', 'desc');
 
-        $query = User::with('roles');
+        $query = User::with(['roles', 'coordinator']);
 
         // Apply search filter
         if ($search) {
@@ -81,7 +81,11 @@ class UserController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'created_at' => $user->created_at,
-                    'roles' => $user->roles->pluck('name')
+                    'roles' => $user->roles->pluck('name'),
+                    'coordinator' => $user->coordinator ? [
+                        'id' => $user->coordinator->id,
+                        'name' => $user->coordinator->name
+                    ] : null
                 ];
             });
 
@@ -105,6 +109,9 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
             'role' => 'required|string|in:technician,coordinator',
+            'coordinator_id' => 'required_if:role,technician|exists:users,id|nullable',
+        ], [
+            'coordinator_id.required_if' => 'A technician must be assigned to a coordinator.',
         ]);
 
         if ($validator->fails()) {
@@ -114,11 +121,31 @@ class UserController extends Controller
             ], 422);
         }
 
+        // If role is technician, ensure coordinator_id is provided
+        if ($request->role === 'technician' && !$request->coordinator_id) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => ['coordinator_id' => ['A technician must be assigned to a coordinator']]
+            ], 422);
+        }
+
+        // Verify coordinator exists and has coordinator role if coordinator_id is provided
+        if ($request->coordinator_id) {
+            $coordinator = User::findOrFail($request->coordinator_id);
+            if (!$coordinator->hasRole('coordinator')) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => ['coordinator_id' => ['Selected user is not a coordinator']]
+                ], 422);
+            }
+        }
+
         $user = User::create([
             'username' => $request->username,
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'coordinator_id' => $request->role === 'technician' ? $request->coordinator_id : null,
         ]);
 
         // Assign role
@@ -138,14 +165,50 @@ class UserController extends Controller
             'email' => 'sometimes|email|unique:users,email,' . $user->id,
             'password' => 'nullable|string|min:6',
             'role' => 'sometimes|string|in:technician,coordinator',
+            'coordinator_id' => 'required_if:role,technician|exists:users,id|nullable',
+        ], [
+            'coordinator_id.required_if' => 'A technician must be assigned to a coordinator.',
         ]);
 
-        $user->update([
+        // If role is being changed to technician, ensure coordinator_id is provided
+        if ($request->role === 'technician' && !$request->coordinator_id) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => ['coordinator_id' => ['A technician must be assigned to a coordinator']]
+            ], 422);
+        }
+
+        // Verify coordinator exists and has coordinator role if coordinator_id is provided
+        if ($request->coordinator_id) {
+            $coordinator = User::findOrFail($request->coordinator_id);
+            if (!$coordinator->hasRole('coordinator')) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => ['coordinator_id' => ['Selected user is not a coordinator']]
+                ], 422);
+            }
+        }
+
+        $updateData = [
             'username' => $request->username ?? $user->username,
             'name' => $request->name ?? $user->name,
             'email' => $request->email ?? $user->email,
-            'password' => $request->password ? Hash::make($request->password) : $user->password,
-        ]);
+        ];
+
+        if ($request->password) {
+            $updateData['password'] = Hash::make($request->password);
+        }
+
+        // Update coordinator_id based on role
+        if ($request->role) {
+            if ($request->role === 'technician') {
+                $updateData['coordinator_id'] = $request->coordinator_id;
+            } else {
+                $updateData['coordinator_id'] = null; // Remove coordinator if user becomes a coordinator
+            }
+        }
+
+        $user->update($updateData);
 
         if ($request->role) {
             $user->syncRoles([$request->role]);
@@ -224,5 +287,17 @@ class UserController extends Controller
         })->get();
 
         return response()->json($technicians);
+    }
+
+    /**
+     * Get all coordinators
+     */
+    public function getCoordinators()
+    {
+        $coordinators = User::whereHas('roles', function ($query) {
+            $query->where('name', 'coordinator');
+        })->get(['id', 'name', 'email']);
+
+        return response()->json($coordinators);
     }
 }

@@ -121,3 +121,7 @@ Route::middleware('auth:api')->group(function () {
     Route::patch('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead']);
     Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
 });
+
+Route::middleware(['auth:api', 'role:admin'])->group(function () {
+    Route::get('/coordinators', [UserController::class, 'getCoordinators']);
+});
