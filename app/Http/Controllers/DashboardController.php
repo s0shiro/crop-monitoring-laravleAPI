@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Farmer;
 use App\Models\CropPlanting;
 use App\Models\CropInspection;
+use App\Models\HarvestReport;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,8 @@ use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
+    private const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
     public function getStats(): JsonResponse
     {
         if (Auth::user()->hasRole('admin')) {
@@ -26,37 +29,22 @@ class DashboardController extends Controller
 
     private function getAdminStats(): JsonResponse
     {
+        $currentYear = Carbon::now()->year;
+
         // Get total users count by role
-        $userStats = User::select('roles.name as role', DB::raw('count(*) as count'))
-            ->join('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
-            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->groupBy('roles.name')
-            ->get()
-            ->pluck('count', 'role')
-            ->toArray();
+        $userStats = $this->getUserStats();
 
         // Get active farms/fields count
         $activeFields = CropPlanting::where('status', 'standing')->count();
 
-        // Get monthly registration statistics using PostgreSQL date formatting
-        $farmRegistrations = Farmer::select(
-            DB::raw("to_char(created_at, 'YYYY-MM') as month"),
-            DB::raw('count(*) as count')
-        )
-            ->where('created_at', '>=', Carbon::now()->subMonths(6))
-            ->groupBy('month')
-            ->orderBy('month', 'desc')
-            ->get();
+        // Get user activity trends
+        $userActivity = $this->getUserActivity();
 
-        // Get user activity trends (based on crop inspections)
-        $userActivity = CropInspection::select(
-            DB::raw('DATE(inspection_date) as date'),
-            DB::raw('count(*) as inspections')
-        )
-            ->where('inspection_date', '>=', Carbon::now()->subDays(30))
-            ->groupBy('date')
-            ->orderBy('date', 'desc')
-            ->get();
+        // Get analytics data
+        $analytics = [
+            'crop_plantings_by_category' => $this->getCropPlantingsData($currentYear),
+            'harvest_analytics' => $this->getHarvestAnalytics($currentYear)
+        ];
 
         return response()->json([
             'system_overview' => [
@@ -65,11 +53,122 @@ class DashboardController extends Controller
                 'active_fields' => $activeFields,
                 'total_farmers' => Farmer::count(),
             ],
-            'analytics' => [
-                'farm_registrations' => $farmRegistrations,
-                'user_activity' => $userActivity,
-            ]
+            'analytics' => $analytics
         ]);
+    }
+
+    private function getUserStats(): array
+    {
+        return User::select('roles.name as role', DB::raw('count(*) as count'))
+            ->join('model_has_roles', 'users.id', '=', 'model_has_roles.model_id')
+            ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->groupBy('roles.name')
+            ->get()
+            ->pluck('count', 'role')
+            ->toArray();
+    }
+
+    private function getUserActivity(): array
+    {
+        return CropInspection::select(
+            DB::raw('DATE(inspection_date) as date'),
+            DB::raw('count(*) as inspections')
+        )
+            ->where('inspection_date', '>=', Carbon::now()->subDays(30))
+            ->groupBy('date')
+            ->orderBy('date', 'desc')
+            ->get()
+            ->toArray();
+    }
+
+    private function initializeMonthlyData(array $categories): array
+    {
+        $data = [];
+        foreach ($categories as $category) {
+            $data[$category] = array_fill(1, 12, 0);
+        }
+        return $data;
+    }
+
+    private function getCropPlantingsData(int $year): array
+    {
+        $stats = CropPlanting::select(
+            'categories.name as category',
+            DB::raw("to_char(crop_plantings.created_at, 'MM') as month"),
+            DB::raw('count(*) as count')
+        )
+            ->join('crops', 'crop_plantings.crop_id', '=', 'crops.id')
+            ->join('categories', 'crops.category_id', '=', 'categories.id')
+            ->whereYear('crop_plantings.created_at', $year)
+            ->groupBy('categories.name', 'month')
+            ->orderBy('categories.name')
+            ->orderBy('month')
+            ->get();
+
+        $categories = $stats->pluck('category')->unique();
+        $categoryData = $this->initializeMonthlyData($categories->toArray());
+
+        foreach ($stats as $stat) {
+            $categoryData[$stat->category][(int)$stat->month] = $stat->count;
+        }
+
+        return [
+            'labels' => self::MONTHS,
+            'datasets' => collect($categoryData)->map(fn($data, $category) => [
+                'label' => $category,
+                'data' => array_values($data)
+            ])->values()->toArray()
+        ];
+    }
+
+    private function getHarvestAnalytics(int $year): array
+    {
+        $stats = HarvestReport::select(
+            'categories.name as category',
+            DB::raw("to_char(harvest_date, 'MM') as month"),
+            DB::raw('SUM(area_harvested) as total_area'),
+            DB::raw('SUM(total_yield) as total_yield')
+        )
+            ->join('crop_plantings', 'harvest_reports.crop_planting_id', '=', 'crop_plantings.id')
+            ->join('crops', 'crop_plantings.crop_id', '=', 'crops.id')
+            ->join('categories', 'crops.category_id', '=', 'categories.id')
+            ->whereYear('harvest_date', $year)
+            ->groupBy('categories.name', 'month')
+            ->orderBy('categories.name')
+            ->orderBy('month')
+            ->get();
+
+        $categories = $stats->pluck('category')->unique();
+        $categoryData = [];
+        
+        foreach ($categories as $category) {
+            $categoryData[$category] = [
+                'area' => array_fill(1, 12, 0),
+                'yield' => array_fill(1, 12, 0)
+            ];
+        }
+
+        foreach ($stats as $stat) {
+            $monthIndex = (int)$stat->month;
+            $categoryData[$stat->category]['area'][$monthIndex] = round(floatval($stat->total_area), 2);
+            $categoryData[$stat->category]['yield'][$monthIndex] = round(floatval($stat->total_yield), 2);
+        }
+
+        return [
+            'labels' => self::MONTHS,
+            'area_harvested' => [
+                'datasets' => collect($categoryData)->map(fn($data, $category) => [
+                    'label' => $category,
+                    'data' => array_values($data['area'])
+                ])->values()->toArray()
+            ],
+            'total_yield' => [
+                'datasets' => collect($categoryData)->map(fn($data, $category) => [
+                    'label' => $category,
+                    'data' => array_values($data['yield'])
+                ])->values()->toArray()
+            ]
+        ];
     }
 
     private function getTechnicianStats(): JsonResponse
