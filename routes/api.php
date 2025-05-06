@@ -35,6 +35,10 @@ Route::middleware('auth:api')->group(function () {
     // Auth management
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    // Coordinator routes
+    Route::middleware(['role:coordinator'])->group(function () {
+        Route::get('/my-technicians', [UserController::class, 'getMyTechnicians']);
+    });
 
     Route::get('/roles', function (Request $request) {
         return response()->json([

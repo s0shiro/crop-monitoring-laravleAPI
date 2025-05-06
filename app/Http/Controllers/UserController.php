@@ -300,4 +300,60 @@ class UserController extends Controller
 
         return response()->json($coordinators);
     }
+
+    /**
+     * Get technicians assigned to the logged-in coordinator
+     */
+    public function getMyTechnicians(Request $request)
+    {
+        $request->validate([
+            'cursor' => 'nullable|integer|min:0',
+            'search' => 'nullable|string',
+        ]);
+
+        $user = auth()->user();
+        
+        if (!$user->hasRole('coordinator')) {
+            return response()->json(['message' => 'Unauthorized. Only coordinators can access this endpoint.'], 403);
+        }
+
+        $cursor = $request->input('cursor', 0);
+        $limit = 9;
+        $search = $request->input('search');
+
+        $query = $user->technicians()->with('roles');
+
+        // Apply search filter if provided
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('username', 'like', "%{$search}%");
+            });
+        }
+
+        // Apply pagination
+        $technicians = $query->orderBy('created_at', 'desc')
+            ->skip($cursor)
+            ->take($limit + 1)
+            ->get()
+            ->map(function ($technician) {
+                return [
+                    'id' => $technician->id,
+                    'username' => $technician->username,
+                    'name' => $technician->name,
+                    'email' => $technician->email,
+                    'created_at' => $technician->created_at,
+                    'roles' => $technician->roles->pluck('name')
+                ];
+            });
+
+        $nextCursor = $technicians->count() > $limit ? $cursor + $limit : null;
+
+        return response()->json([
+            'data' => $technicians->take($limit),
+            'nextCursor' => $nextCursor,
+            'total' => $user->technicians()->count() // Add total count
+        ]);
+    }
 }
