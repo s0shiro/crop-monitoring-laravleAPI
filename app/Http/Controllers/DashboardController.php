@@ -235,7 +235,7 @@ class DashboardController extends Controller
     private function getCoordinatorStats(): JsonResponse
     {
         $coordinatorId = Auth::id();
-        $startOfMonth = Carbon::now()->startOfMonth();
+        $currentYear = Carbon::now()->year;
 
         // Get total technicians count
         $totalTechnicians = User::where('coordinator_id', $coordinatorId)
@@ -291,6 +291,24 @@ class DashboardController extends Controller
             ];
         });
 
+        // Get crop planting trends for coordinator's technicians
+        $plantingTrends = CropPlanting::whereHas('technician', function($query) use ($coordinatorId) {
+            $query->where('coordinator_id', $coordinatorId);
+        })
+        ->select(
+            DB::raw("to_char(created_at, 'MM') as month"),
+            DB::raw('count(*) as count')
+        )
+        ->whereYear('created_at', $currentYear)
+        ->groupBy('month')
+        ->orderBy('month')
+        ->get();
+
+        $monthlyData = array_fill(1, 12, 0);
+        foreach ($plantingTrends as $trend) {
+            $monthlyData[(int)$trend->month] = $trend->count;
+        }
+
         return response()->json([
             'overview' => [
                 'total_technicians' => $totalTechnicians,
@@ -300,6 +318,15 @@ class DashboardController extends Controller
             'monitoring' => [
                 'recent_inspections' => $recentInspections,
                 'recent_alerts' => $recentAlerts,
+            ],
+            'trends' => [
+                'labels' => self::MONTHS,
+                'datasets' => [
+                    [
+                        'label' => 'Crop Plantings',
+                        'data' => array_values($monthlyData)
+                    ]
+                ]
             ]
         ]);
     }
