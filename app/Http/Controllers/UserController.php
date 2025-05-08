@@ -4,6 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Farmer;
+use App\Models\CropPlanting;
+use App\Models\CropInspection;
+use App\Models\HarvestReport;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 
@@ -354,6 +359,126 @@ class UserController extends Controller
             'data' => $technicians->take($limit),
             'nextCursor' => $nextCursor,
             'total' => $user->technicians()->count() // Add total count
+        ]);
+    }
+
+    /**
+     * Get detailed statistics and activity for a specific technician (Coordinator only)
+     */
+    public function getTechnicianDetails(Request $request, User $technician): JsonResponse
+    {
+        $user = auth()->user();
+        
+        if (!$user->hasRole('coordinator') || $technician->coordinator_id !== $user->id) {
+            return response()->json(['message' => 'Unauthorized. Only coordinators can access their technicians\' details.'], 403);
+        }
+
+        if (!$technician->hasRole('technician')) {
+            return response()->json(['message' => 'Specified user is not a technician.'], 422);
+        }
+
+        // Get counts for farmers and active plantings
+        $farmerCount = Farmer::where('technician_id', $technician->id)->count();
+        $activePlantings = CropPlanting::where('technician_id', $technician->id)
+            ->where('status', 'standing')
+            ->count();
+
+        // Get recent inspections (last 30 days)
+        $recentInspections = CropInspection::where('technician_id', $technician->id)
+            ->with(['cropPlanting.farmer:id,name', 'cropPlanting.crop:id,name'])
+            ->whereDate('inspection_date', '>=', now()->subDays(30))
+            ->orderBy('inspection_date', 'desc')
+            ->get()
+            ->map(function ($inspection) {
+                return [
+                    'date' => $inspection->inspection_date,
+                    'farmer_name' => $inspection->cropPlanting->farmer->name,
+                    'crop_name' => $inspection->cropPlanting->crop->name,
+                    'remarks' => $inspection->remarks,
+                    'damaged_area' => $inspection->damaged_area,
+                ];
+            });
+
+        // Get recent harvests (last 30 days)
+        $recentHarvests = HarvestReport::where('technician_id', $technician->id)
+            ->with(['cropPlanting.farmer:id,name', 'cropPlanting.crop:id,name'])
+            ->whereDate('harvest_date', '>=', now()->subDays(30))
+            ->orderBy('harvest_date', 'desc')
+            ->get()
+            ->map(function ($harvest) {
+                return [
+                    'date' => $harvest->harvest_date,
+                    'farmer_name' => $harvest->cropPlanting->farmer->name,
+                    'crop_name' => $harvest->cropPlanting->crop->name,
+                    'area_harvested' => $harvest->area_harvested,
+                    'total_yield' => $harvest->total_yield,
+                    'profit' => $harvest->profit,
+                ];
+            });
+
+        // Get crop distribution
+        $cropDistribution = CropPlanting::where('technician_id', $technician->id)
+            ->where('status', 'standing')
+            ->with(['crop:id,name', 'category:id,name'])
+            ->get()
+            ->groupBy('category.name')
+            ->map(function ($plantings) {
+                return $plantings->groupBy('crop.name')
+                    ->map(function ($cropPlantings) {
+                        return [
+                            'count' => $cropPlantings->count(),
+                            'total_area' => $cropPlantings->sum('area_planted'),
+                            'crop_planting_id' => $cropPlantings->first()->crop->id,
+                        ];
+                    });
+            });
+
+        // Calculate performance metrics
+        $totalInspections = CropInspection::where('technician_id', $technician->id)
+            ->whereDate('inspection_date', '>=', now()->startOfMonth())
+            ->count();
+            
+        $totalHarvests = HarvestReport::where('technician_id', $technician->id)
+            ->whereDate('harvest_date', '>=', now()->startOfMonth())
+            ->count();
+
+        $harvestYieldStats = HarvestReport::where('technician_id', $technician->id)
+            ->whereDate('harvest_date', '>=', now()->startOfMonth())
+            ->selectRaw('
+                COUNT(*) as harvest_count,
+                AVG(total_yield) as average_yield,
+                SUM(total_yield) as total_yield,
+                AVG(profit) as average_profit
+            ')
+            ->first();
+
+        return response()->json([
+            'overview' => [
+                'farmers_handled' => $farmerCount,
+                'active_plantings' => $activePlantings,
+                'monthly_inspections' => $totalInspections,
+                'monthly_harvests' => $totalHarvests,
+            ],
+            'performance_metrics' => [
+                'monthly_stats' => [
+                    'harvest_count' => $harvestYieldStats->harvest_count ?? 0,
+                    'average_yield' => round($harvestYieldStats->average_yield ?? 0, 2),
+                    'total_yield' => round($harvestYieldStats->total_yield ?? 0, 2),
+                    'average_profit' => round($harvestYieldStats->average_profit ?? 0, 2),
+                ]
+            ],
+            'crop_distribution' => $cropDistribution,
+            'recent_activity' => [
+                'inspections' => $recentInspections,
+                'harvests' => $recentHarvests,
+            ],
+            'technician_info' => [
+                'id' => $technician->id,
+                'name' => $technician->name,
+                'email' => $technician->email,
+                'username' => $technician->username,
+                'joined_date' => $technician->created_at,
+            ]
         ]);
     }
 }

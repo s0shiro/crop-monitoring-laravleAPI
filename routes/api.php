@@ -38,6 +38,7 @@ Route::middleware('auth:api')->group(function () {
     // Coordinator routes
     Route::middleware(['role:coordinator'])->group(function () {
         Route::get('/my-technicians', [UserController::class, 'getMyTechnicians']);
+        Route::get('/technicians/{technician}/details', [UserController::class, 'getTechnicianDetails']);
     });
 
     Route::get('/roles', function (Request $request) {
