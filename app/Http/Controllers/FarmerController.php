@@ -100,7 +100,34 @@ class FarmerController extends Controller
             }
 
             return response()->json([
-                'data' => $farmer->load(['association', 'technician'])
+                'data' => $farmer->load([
+                    'association', 
+                    'technician',
+                    'cropPlantings' => function($query) {
+                        $query->select(
+                            'id', 
+                            'farmer_id',
+                            'planting_date',
+                            'expected_harvest_date',
+                            'area_planted',
+                            'harvested_area',
+                            'remaining_area',
+                            'damaged_area',
+                            'status',
+                            'category_id',
+                            'crop_id',
+                            'variety_id'
+                        )
+                        ->with([
+                            'category:id,name',
+                            'crop:id,name,category_id',
+                            'variety:id,name,maturity_days,crop_id',
+                            'harvestReports:id,crop_planting_id,harvest_date,area_harvested,total_yield',
+                            'inspections:id,crop_planting_id,inspection_date,damaged_area'
+                        ])
+                        ->orderBy('planting_date', 'desc');
+                    }
+                ])
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['message' => 'Farmer not found'], 404);

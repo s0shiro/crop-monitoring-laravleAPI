@@ -29,4 +29,9 @@ class Farmer extends Model
     {
         return $this->belongsTo(User::class, 'technician_id');
     }
+
+    public function cropPlantings()
+    {
+        return $this->hasMany(CropPlanting::class);
+    }
 }
