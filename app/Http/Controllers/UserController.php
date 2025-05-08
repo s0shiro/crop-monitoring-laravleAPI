@@ -427,8 +427,7 @@ class UserController extends Controller
                     ->map(function ($cropPlantings) {
                         return [
                             'count' => $cropPlantings->count(),
-                            'total_area' => $cropPlantings->sum('area_planted'),
-                            'crop_planting_id' => $cropPlantings->first()->crop->id,
+                            'total_area' => $cropPlantings->sum('area_planted')
                         ];
                     });
             });

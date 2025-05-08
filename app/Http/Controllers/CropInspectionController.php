@@ -123,9 +123,9 @@ class CropInspectionController extends Controller
 
     public function show(CropInspection $cropInspection): JsonResponse
     {
-        if (!$this->canAccessInspection($cropInspection)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        // if (!$this->canAccessInspection($cropInspection)) {
+        //     return response()->json(['message' => 'Unauthorized'], 403);
+        // }
 
         return response()->json([
             'data' => $cropInspection->load(['cropPlanting.farmer', 'technician'])
