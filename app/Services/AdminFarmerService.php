@@ -8,11 +8,30 @@ use Illuminate\Validation\ValidationException;
 
 class AdminFarmerService
 {
-    public function getFarmers(int $cursor = 0, int $limit = 9)
+    public function getFarmers(int $cursor = 0, int $limit = 9, ?string $search = null, ?string $association = 'all', ?string $sortBy = 'created_at', ?string $sortDirection = 'desc')
     {
-        $farmers = Farmer::with(['association', 'technician'])
-            ->orderBy('id', 'desc')
-            ->skip($cursor)
+        $query = Farmer::with(['association', 'technician']);
+        
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('rsbsa', 'like', "%{$search}%")
+                  ->orWhere('barangay', 'like', "%{$search}%")
+                  ->orWhere('municipality', 'like', "%{$search}%");
+            });
+        }
+
+        if ($association !== 'all') {
+            $query->where('association_id', $association);
+        }
+
+        // Handle sorting
+        $sortBy = in_array($sortBy, ['name', 'created_at', 'barangay', 'municipality']) ? $sortBy : 'created_at';
+        $sortDirection = in_array($sortDirection, ['asc', 'desc']) ? $sortDirection : 'desc';
+        
+        $query->orderBy($sortBy, $sortDirection);
+
+        $farmers = $query->skip($cursor)
             ->take($limit + 1)
             ->get();
 

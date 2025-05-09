@@ -25,11 +25,20 @@ class FarmerController extends Controller
     {
         $request->validate([
             'cursor' => 'nullable|integer|min:0',
+            'search' => 'nullable|string|max:255',
+            'association' => 'nullable|string',
+            'sortBy' => 'nullable|string|in:name,created_at,barangay,municipality',
+            'sortDirection' => 'nullable|string|in:asc,desc',
         ]);
 
         $cursor = $request->input('cursor', 0);
+        $search = $request->input('search');
+        $association = $request->input('association', 'all');
+        $sortBy = $request->input('sortBy', 'created_at');
+        $sortDirection = $request->input('sortDirection', 'desc');
+
         $service = Auth::user()->hasRole('admin') ? $this->adminService : $this->technicianService;
-        $result = $service->getFarmers($cursor);
+        $result = $service->getFarmers($cursor, 9, $search, $association, $sortBy, $sortDirection);
 
         return response()->json($result);
     }
