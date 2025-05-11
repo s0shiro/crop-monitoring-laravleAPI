@@ -40,6 +40,16 @@ class FarmerController extends Controller
         $service = Auth::user()->hasRole('admin') ? $this->adminService : $this->technicianService;
         $result = $service->getFarmers($cursor, 9, $search, $association, $sortBy, $sortDirection);
 
+        // If this is a search for dropdown, return only id and name
+        if ($request->has('search')) {
+            $result['data'] = collect($result['data'])->map(function ($farmer) {
+                return [
+                    'id' => $farmer['id'],
+                    'name' => $farmer['name'],
+                ];
+            });
+        }
+
         return response()->json($result);
     }
 
