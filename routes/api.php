@@ -34,6 +34,7 @@ Route::middleware('auth:api')->group(function () {
 
     // Auth management
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
 
     // Coordinator routes
     Route::middleware(['role:coordinator'])->group(function () {
