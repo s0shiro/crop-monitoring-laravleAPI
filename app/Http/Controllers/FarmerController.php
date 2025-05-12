@@ -29,6 +29,8 @@ class FarmerController extends Controller
             'association' => 'nullable|string',
             'sortBy' => 'nullable|string|in:name,created_at,barangay,municipality',
             'sortDirection' => 'nullable|string|in:asc,desc',
+            // Add dropdown param validation
+            'dropdown' => 'nullable|boolean',
         ]);
 
         $cursor = $request->input('cursor', 0);
@@ -36,18 +38,19 @@ class FarmerController extends Controller
         $association = $request->input('association', 'all');
         $sortBy = $request->input('sortBy', 'created_at');
         $sortDirection = $request->input('sortDirection', 'desc');
+        $dropdown = $request->boolean('dropdown', false);
 
         $service = Auth::user()->hasRole('admin') ? $this->adminService : $this->technicianService;
         $result = $service->getFarmers($cursor, 9, $search, $association, $sortBy, $sortDirection);
 
-        // If this is a search for dropdown, return only id and name
-        if ($request->has('search')) {
+        // Only return id and name if dropdown param is set
+        if ($dropdown) {
             $result['data'] = collect($result['data'])->map(function ($farmer) {
                 return [
                     'id' => $farmer['id'],
                     'name' => $farmer['name'],
                 ];
-            });
+            })->values();
         }
 
         return response()->json($result);
