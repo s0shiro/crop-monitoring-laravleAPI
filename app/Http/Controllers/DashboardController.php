@@ -45,7 +45,8 @@ class DashboardController extends Controller
         // Get analytics data
         $analytics = [
             'crop_plantings_by_category' => $this->getCropPlantingsData($currentYear),
-            'harvest_analytics' => $this->getHarvestAnalytics($currentYear)
+            'harvest_analytics' => $this->getHarvestAnalytics($currentYear),
+            'marinduque_heatmap' => $this->getMarinduqueHeatMapData()
         ];
 
         return response()->json([
@@ -327,7 +328,63 @@ class DashboardController extends Controller
                         'data' => array_values($monthlyData)
                     ]
                 ]
-            ]
+            ],
+            'marinduque_heatmap' => $this->getMarinduqueHeatMapData()
         ]);
+    }
+
+    /**
+     * Get heat map data for crop categories in Marinduque
+     */
+    private function getMarinduqueHeatMapData(): array
+    {
+        $currentYear = Carbon::now()->year;
+        
+        // Get all crop plantings in Marinduque with location data
+        $marinduquePlantings = CropPlanting::select(
+            'categories.name as category',
+            'crop_plantings.municipality',
+            'crop_plantings.barangay',
+            'crop_plantings.latitude',
+            'crop_plantings.longitude',
+            DB::raw('count(*) as planting_count'),
+            DB::raw('SUM(area_planted) as total_area')
+        )
+            ->join('crops', 'crop_plantings.crop_id', '=', 'crops.id')
+            ->join('categories', 'crops.category_id', '=', 'categories.id')
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->whereYear('crop_plantings.created_at', $currentYear)  // Filter for current year only
+            // Filter for Marinduque municipalities
+            ->whereIn('municipality', [
+                'Boac', 'Mogpog', 'Gasan', 'Buenavista', 'Torrijos', 'Santa Cruz'
+            ])
+            ->where('status', '!=', 'completed')  // Only active plantings
+            ->groupBy('categories.name', 'municipality', 'barangay', 'latitude', 'longitude')
+            ->orderBy('categories.name')
+            ->get();
+
+        // Organize data by category
+        $categories = $marinduquePlantings->pluck('category')->unique();
+        $heatMapData = [];
+
+        foreach ($categories as $category) {
+            $categoryPlantings = $marinduquePlantings->where('category', $category);
+            
+            $heatMapData[$category] = $categoryPlantings->map(function ($planting) {
+                return [
+                    'location' => [
+                        'lat' => (float) $planting->latitude,
+                        'lng' => (float) $planting->longitude,
+                    ],
+                    'municipality' => $planting->municipality,
+                    'barangay' => $planting->barangay,
+                    'weight' => (float) $planting->total_area,  // Area as weight for heat intensity
+                    'count' => $planting->planting_count
+                ];
+            })->values()->toArray();
+        }
+
+        return $heatMapData;
     }
 }
